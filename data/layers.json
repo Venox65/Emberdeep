@@ -1,0 +1,12 @@
+[
+  { "id": "ashen-warrens", "name": "Ashen Warrens", "tier": 1, "minLevel": 1, "requiredPickaxeTier": 0 },
+  { "id": "copper-crypt", "name": "Copper Crypt", "tier": 2, "minLevel": 5, "requiredPickaxeTier": 1 },
+  { "id": "iron-hollows", "name": "Iron Hollows", "tier": 3, "minLevel": 10, "requiredPickaxeTier": 2 },
+  { "id": "silvermire", "name": "Silvermire", "tier": 4, "minLevel": 15, "requiredPickaxeTier": 3 },
+  { "id": "aurelite-keep", "name": "Aurelite Keep", "tier": 5, "minLevel": 20, "requiredPickaxeTier": 4 },
+  { "id": "runic-archives", "name": "Runic Archives", "tier": 6, "minLevel": 27, "requiredPickaxeTier": 5 },
+  { "id": "stargazer-spire", "name": "Stargazer Spire", "tier": 7, "minLevel": 34, "requiredPickaxeTier": 6 },
+  { "id": "wyrmbone-caverns", "name": "Wyrmbone Caverns", "tier": 8, "minLevel": 42, "requiredPickaxeTier": 7 },
+  { "id": "voidglass-sanctum", "name": "Voidglass Sanctum", "tier": 9, "minLevel": 50, "requiredPickaxeTier": 8 },
+  { "id": "aether-vault", "name": "The Aether Vault", "tier": 10, "minLevel": 60, "requiredPickaxeTier": 9 }
+]

@@ -1,0 +1,12 @@
+[
+  {"id":"grubnok","name":"Grubnok, the Burrow-King","layer":"ashen-warrens","challenge":"frenzy-dig","minLevel":1,"legendary":"burrowkings-crown"},
+  {"id":"sir-rattlebone","name":"Sir Rattlebone","layer":"copper-crypt","challenge":"bone-duel","minLevel":5,"legendary":"bonecleaver-gauntlets"},
+  {"id":"morwenna","name":"Morwenna the Ashen Witch","layer":"iron-hollows","challenge":"cinder-dance","minLevel":10,"legendary":"cinderheart-amulet"},
+  {"id":"thessaly","name":"Thessaly, the Bog Hydra","layer":"silvermire","challenge":"head-hunt","minLevel":15,"legendary":"hydrascale-cuirass"},
+  {"id":"aldric","name":"Aldric, the Gilded Knight","layer":"aurelite-keep","challenge":"parry-duel","minLevel":20,"legendary":"sunforged-pickaxe"},
+  {"id":"isolde","name":"Isolde, Runewarden","layer":"runic-archives","challenge":"rune-recall","minLevel":27,"legendary":"runewardens-diadem"},
+  {"id":"seraphel","name":"Seraphel, the Fallen Star","layer":"stargazer-spire","challenge":"star-trace","minLevel":34,"legendary":"starfall-treads"},
+  {"id":"ignathia","name":"Ignathia, the Ember Wyrm","layer":"wyrmbone-caverns","challenge":"wyrmfire-run","minLevel":42,"legendary":"wyrmfang-breaker"},
+  {"id":"xarmal","name":"Xar'Mal, the Lich Emperor","layer":"voidglass-sanctum","challenge":"soul-dodge","minLevel":50,"legendary":"voidglass-phylactery"},
+  {"id":"hollow-king","name":"The Hollow King","layer":"aether-vault","challenge":"five-trials","minLevel":60,"legendary":"aetherbrand"}
+]

@@ -1,0 +1,17 @@
+{
+  "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+  "name": "emberdeep",
+  "version": "0.1.0",
+  "description": "Emberdeep: The Hollow Crown dependencies and toolchain manifest.",
+  "dependencies": [
+    "catch2",
+    "cpr",
+    "drogon",
+    "ixwebsocket",
+    "libsodium",
+    "nlohmann-json",
+    "raylib",
+    "spdlog",
+    "zstd"
+  ]
+}

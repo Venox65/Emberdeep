@@ -1,0 +1,17 @@
+add_library(emberdeep_core
+    src/campaign.cpp
+    src/dungeon.cpp
+    src/formulas.cpp
+    src/game_state.cpp
+    src/inventory.cpp
+    src/mining.cpp
+    src/postgame.cpp
+    src/pcg.cpp
+)
+
+target_include_directories(emberdeep_core
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_compile_features(emberdeep_core PUBLIC cxx_std_20)

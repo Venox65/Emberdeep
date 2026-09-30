@@ -1,0 +1,12 @@
+[
+  { "id": "amber", "name": "Amber", "rarity": "common", "effect": "+1 Luck", "priority": 1 },
+  { "id": "garnet", "name": "Garnet", "rarity": "common", "effect": "+2% Attack", "priority": 2 },
+  { "id": "jade", "name": "Jade", "rarity": "uncommon", "effect": "+2% Max HP", "priority": 3 },
+  { "id": "moonstone", "name": "Moonstone", "rarity": "uncommon", "effect": "+0.5% Crit Chance", "priority": 4 },
+  { "id": "sapphire", "name": "Sapphire", "rarity": "rare", "effect": "+1% Focus", "priority": 5 },
+  { "id": "bloodstone", "name": "Bloodstone", "rarity": "rare", "effect": "1% lifesteal", "priority": 6 },
+  { "id": "star-ruby", "name": "Star Ruby", "rarity": "epic", "effect": "+3% Mining Power", "priority": 7 },
+  { "id": "arcane-opal", "name": "Arcane Opal", "rarity": "epic", "effect": "+3% XP gain", "priority": 8 },
+  { "id": "dragon-eye", "name": "Dragon's Eye", "rarity": "legendary", "effect": "+2 Pierce, +5% Crit Damage", "priority": 9 },
+  { "id": "aether-diamond", "name": "Aether Diamond", "rarity": "legendary", "effect": "+1.5% to all stats", "priority": 10 }
+]

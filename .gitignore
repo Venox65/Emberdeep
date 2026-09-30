@@ -1,0 +1,21 @@
+# Build directories
+/build/
+/build-debug/
+/build-release/
+
+# Editor / OS noise
+.DS_Store
+.vscode/
+.idea/
+
+# Local toolchain files
+.vcpkg-root
+
+# Logs and caches
+*.log
+*.tmp
+*.swp
+
+# Local generated data
+*.sav
+*.bak

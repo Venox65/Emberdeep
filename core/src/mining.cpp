@@ -1,0 +1,195 @@
+#include "ed/mining.hpp"
+
+#include <algorithm>
+#include <cmath>
+#include <stdexcept>
+
+#include "ed/formulas.hpp"
+
+namespace ed {
+
+namespace {
+
+int clampToRange(int value, int minValue, int maxValue) {
+  return std::max(minValue, std::min(value, maxValue));
+}
+
+const MaterialDef* findMaterialById(const std::vector<MaterialDef>& materials, const std::string& id) {
+  for (const auto& material : materials) {
+    if (material.id == id) {
+      return &material;
+    }
+  }
+  return nullptr;
+}
+
+const LayerDef* findLayerById(const std::vector<LayerDef>& layers, const std::string& id) {
+  for (const auto& layer : layers) {
+    if (layer.id == id) {
+      return &layer;
+    }
+  }
+  return nullptr;
+}
+
+Rarity rarityFromIndex(int index) {
+  switch (index) {
+    case 0:
+      return Rarity::Common;
+    case 1:
+      return Rarity::Uncommon;
+    case 2:
+      return Rarity::Rare;
+    default:
+      return Rarity::Epic;
+  }
+}
+
+int rarityMultiplier(Rarity rarity) {
+  switch (rarity) {
+    case Rarity::Common:
+      return 1;
+    case Rarity::Uncommon:
+      return 2;
+    case Rarity::Rare:
+      return 3;
+    case Rarity::Epic:
+      return 6;
+  }
+  return 1;
+}
+
+double rarityHpMultiplier(Rarity rarity) {
+  switch (rarity) {
+    case Rarity::Common:
+      return 1.0;
+    case Rarity::Uncommon:
+      return 1.5;
+    case Rarity::Rare:
+      return 2.5;
+    case Rarity::Epic:
+      return 5.0;
+  }
+  return 1.0;
+}
+
+double rarityXpMultiplier(Rarity rarity) {
+  switch (rarity) {
+    case Rarity::Common:
+      return 1.0;
+    case Rarity::Uncommon:
+      return 1.5;
+    case Rarity::Rare:
+      return 3.0;
+    case Rarity::Epic:
+      return 5.0;
+  }
+  return 1.0;
+}
+
+} // namespace
+
+int rarityWeightForLuck(int luck) {
+  return clampToRange(luck, 0, 15);
+}
+
+int weightedRarityRoll(Pcg32& rng, int luck) {
+  const int luckShift = rarityWeightForLuck(luck);
+  const int commonBase = 70;
+  const int uncommonBase = 22;
+  const int rareBase = 6;
+  const int epicBase = 1;
+
+  const int commonWeight = commonBase - luckShift;
+  const int uncommonWeight = uncommonBase + static_cast<int>(std::round((luckShift * 0.55) * 1.0));
+  const int rareWeight = rareBase + static_cast<int>(std::round((luckShift * 0.35) * 1.0));
+  const int epicWeight = epicBase + static_cast<int>(std::round((luckShift * 0.10) * 1.0));
+
+  const int total = commonWeight + uncommonWeight + rareWeight + epicWeight;
+  const int roll = static_cast<int>(rng.next() % static_cast<std::uint32_t>(std::max(1, total)));
+
+  int threshold = commonWeight;
+  if (roll < threshold) {
+    return 0;
+  }
+  threshold += uncommonWeight;
+  if (roll < threshold) {
+    return 1;
+  }
+  threshold += rareWeight;
+  if (roll < threshold) {
+    return 2;
+  }
+  return 3;
+}
+
+BlockSpec generateBlockForLayer(const std::vector<LayerDef>& layers,
+                               const std::vector<MaterialDef>& materials,
+                               const std::string& selectedLayer,
+                               int luck,
+                               Pcg32& rng) {
+  const LayerDef* layer = findLayerById(layers, selectedLayer);
+  if (!layer) {
+    throw std::invalid_argument("selected layer not found");
+  }
+
+  int tier = layer->tier;
+  const int roll = static_cast<int>(rng.next() % 100);
+  if (roll < 75) {
+    tier = layer->tier;
+  } else if (roll < 95 && layer->tier > 1) {
+    tier = std::max(1, layer->tier - 1);
+  } else if (layer->tier < 10) {
+    tier = std::min(10, layer->tier + 1);
+  }
+
+  const std::string materialId = "material-" + std::to_string(tier);
+  const MaterialDef* material = nullptr;
+  for (const auto& candidate : materials) {
+    if (candidate.minLevel <= layer->minLevel && candidate.hp == materialHpForTier(tier)) {
+      material = &candidate;
+      break;
+    }
+  }
+
+  if (!material) {
+    material = findMaterialById(materials, "ashen-stone");
+    if (!material) {
+      throw std::invalid_argument("no material definitions available");
+    }
+  }
+
+  const Rarity rarity = rarityFromIndex(weightedRarityRoll(rng, luck));
+  const int hp = static_cast<int>(std::llround(material->hp * rarityHpMultiplier(rarity)));
+  const int xp = static_cast<int>(std::llround(material->xp * rarityXpMultiplier(rarity)));
+
+  BlockSpec block;
+  block.layerId = layer->id;
+  block.materialId = material->id;
+  block.materialName = material->name;
+  block.color = material->color;
+  block.maxHp = hp;
+  block.hardness = material->hardness;
+  block.xp = xp;
+  block.sell = material->sell;
+  block.rarityWeight = rarityWeightForLuck(luck);
+  block.rarity = rarity;
+  block.dropMultiplier = rarityMultiplier(rarity);
+
+  return block;
+}
+
+MiningProgress createMiningProgress(const BlockSpec& spec) {
+  MiningProgress progress;
+  progress.currentHp = spec.maxHp;
+  progress.maxHp = spec.maxHp;
+  progress.hardness = spec.hardness;
+  progress.xp = spec.xp;
+  progress.sell = spec.sell;
+  progress.rarity = spec.rarity;
+  progress.materialId = spec.materialId;
+  progress.layerId = spec.layerId;
+  return progress;
+}
+
+} // namespace ed

@@ -1,0 +1,14 @@
+[
+  { "branch": "Delver", "id": "strong-arms", "label": "Strong Arms", "maxRank": 10, "description": "+3% Mining Power per rank" },
+  { "branch": "Delver", "id": "keen-eye", "label": "Keen Eye", "maxRank": 10, "description": "+1% Crit Chance per rank" },
+  { "branch": "Delver", "id": "prospector", "label": "Prospector", "maxRank": 10, "description": "+1 Luck per rank" },
+  { "branch": "Delver", "id": "deep-breath", "label": "Deep Breath", "maxRank": 5, "description": "Weak Spot appears 5% more often" },
+  { "branch": "Warrior", "id": "stout-heart", "label": "Stout Heart", "maxRank": 10, "description": "+4% Max HP per rank" },
+  { "branch": "Warrior", "id": "whetstone", "label": "Whetstone", "maxRank": 10, "description": "+3% Attack per rank" },
+  { "branch": "Warrior", "id": "ironskin", "label": "Ironskin", "maxRank": 10, "description": "+2% Defense per rank" },
+  { "branch": "Warrior", "id": "swift-boots", "label": "Swift Boots", "maxRank": 5, "description": "+1 Speed per rank" },
+  { "branch": "Scholar", "id": "quick-study", "label": "Quick Study", "maxRank": 10, "description": "+3% XP per rank" },
+  { "branch": "Scholar", "id": "haggler", "label": "Haggler", "maxRank": 10, "description": "+3% gold from sales per rank" },
+  { "branch": "Scholar", "id": "steady-hand", "label": "Steady Hand", "maxRank": 10, "description": "+1% Focus per rank" },
+  { "branch": "Scholar", "id": "dust-collector", "label": "Dust Collector", "maxRank": 5, "description": "+2% Arcane Dust chance" }
+]

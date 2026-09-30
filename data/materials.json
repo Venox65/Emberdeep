@@ -1,0 +1,112 @@
+[
+  {
+    "id": "ashen-stone",
+    "name": "Ashen Stone",
+    "layer": "ashen-warrens",
+    "color": "#8a8a94",
+    "hp": 20,
+    "hardness": 0,
+    "xp": 5,
+    "sell": 1,
+    "minLevel": 1
+  },
+  {
+    "id": "copper",
+    "name": "Copper",
+    "layer": "copper-crypt",
+    "color": "#c9773f",
+    "hp": 52,
+    "hardness": 4,
+    "xp": 12,
+    "sell": 3,
+    "minLevel": 5
+  },
+  {
+    "id": "iron",
+    "name": "Iron",
+    "layer": "iron-hollows",
+    "color": "#7b8794",
+    "hp": 135,
+    "hardness": 10,
+    "xp": 29,
+    "sell": 8,
+    "minLevel": 10
+  },
+  {
+    "id": "silvervein",
+    "name": "Silvervein",
+    "layer": "silvermire",
+    "color": "#d7e2ec",
+    "hp": 350,
+    "hardness": 20,
+    "xp": 69,
+    "sell": 20,
+    "minLevel": 15
+  },
+  {
+    "id": "aurelite",
+    "name": "Aurelite",
+    "layer": "aurelite-keep",
+    "color": "#f2c14e",
+    "hp": 915,
+    "hardness": 36,
+    "xp": 166,
+    "sell": 50,
+    "minLevel": 20
+  },
+  {
+    "id": "runic-slate",
+    "name": "Runic Slate",
+    "layer": "runic-archives",
+    "color": "#5a4fcf",
+    "hp": 2380,
+    "hardness": 60,
+    "xp": 398,
+    "sell": 125,
+    "minLevel": 27
+  },
+  {
+    "id": "starmetal",
+    "name": "Starmetal",
+    "layer": "stargazer-spire",
+    "color": "#6fd3ff",
+    "hp": 6190,
+    "hardness": 95,
+    "xp": 955,
+    "sell": 310,
+    "minLevel": 34
+  },
+  {
+    "id": "wyrmite",
+    "name": "Wyrmite",
+    "layer": "wyrmbone-caverns",
+    "color": "#d94f30",
+    "hp": 16100,
+    "hardness": 145,
+    "xp": 2290,
+    "sell": 780,
+    "minLevel": 42
+  },
+  {
+    "id": "voidglass",
+    "name": "Voidglass",
+    "layer": "voidglass-sanctum",
+    "color": "#2b0f3a",
+    "hp": 41800,
+    "hardness": 210,
+    "xp": 5500,
+    "sell": 1950,
+    "minLevel": 50
+  },
+  {
+    "id": "aetherium",
+    "name": "Aetherium",
+    "layer": "aether-vault",
+    "color": "#7cf7e0",
+    "hp": 108700,
+    "hardness": 300,
+    "xp": 13200,
+    "sell": 4900,
+    "minLevel": 60
+  }
+]

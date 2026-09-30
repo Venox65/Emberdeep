@@ -1,0 +1,12 @@
+[
+  {"id":"ashen-warrens","name":"Ashen Warrens","tier":1,"trophy":"gnawed-pelt"},
+  {"id":"copper-crypt","name":"Copper Crypt","tier":2,"trophy":"grave-bone"},
+  {"id":"iron-hollows","name":"Iron Hollows","tier":3,"trophy":"cinder-wick"},
+  {"id":"silvermire","name":"Silvermire","tier":4,"trophy":"bog-scale"},
+  {"id":"aurelite-keep","name":"Aurelite Keep","tier":5,"trophy":"gilded-thread"},
+  {"id":"runic-archives","name":"Runic Archives","tier":6,"trophy":"ink-wisp"},
+  {"id":"stargazer-spire","name":"Stargazer Spire","tier":7,"trophy":"star-shard"},
+  {"id":"wyrmbone-caverns","name":"Wyrmbone Caverns","tier":8,"trophy":"wyrm-scale"},
+  {"id":"voidglass-sanctum","name":"Voidglass Sanctum","tier":9,"trophy":"void-ichor"},
+  {"id":"aether-vault","name":"The Aether Vault","tier":10,"trophy":"aether-mote"}
+]
