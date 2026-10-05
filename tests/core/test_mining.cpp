@@ -35,3 +35,28 @@ TEST_CASE("mining progress reflects the generated block values") {
   REQUIRE(progress.sell == 8);
   REQUIRE(progress.rarity == ed::Rarity::Rare);
 }
+
+TEST_CASE("all post-Iron layers generate their own materials") {
+  const auto layers = ed::defaultLayers();
+  const auto materials = ed::defaultMaterials();
+
+  for (const auto& layer : layers) {
+    if (layer.tier < 4) {
+      continue;
+    }
+
+    ed::Pcg32 rng(static_cast<std::uint64_t>(layer.tier));
+    bool generatedTargetTier = false;
+    for (int attempt = 0; attempt < 100; ++attempt) {
+      const auto block =
+          ed::generateBlockForLayer(layers, materials, layer.id, 0, rng);
+      REQUIRE(block.materialId != "ashen-stone");
+      for (const auto& material : materials) {
+        if (material.id == block.materialId && material.layer == layer.id) {
+          generatedTargetTier = true;
+        }
+      }
+    }
+    REQUIRE(generatedTargetTier);
+  }
+}

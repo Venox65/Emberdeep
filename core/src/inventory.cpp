@@ -12,7 +12,6 @@ bool addItemToInventory(InventoryState& inventory,
     return false;
   }
 
-  inventory.ore[type] += 0;
   if (type == "ore") {
     inventory.ore[itemId] += quantity;
     return true;
@@ -72,31 +71,32 @@ bool removeItemFromInventory(InventoryState& inventory,
 }
 
 bool equipGear(InventoryState& inventory, const GearPiece& piece) {
+  bool equipped = false;
   if (piece.slot == "pickaxe") {
     inventory.equipped.pickaxeId = piece.itemId;
-    return true;
+    equipped = true;
   }
   if (piece.slot == "helm") {
     inventory.equipped.helmId = piece.itemId;
-    return true;
+    equipped = true;
   }
   if (piece.slot == "chestplate") {
     inventory.equipped.chestplateId = piece.itemId;
-    return true;
+    equipped = true;
   }
   if (piece.slot == "gauntlets") {
     inventory.equipped.gauntletsId = piece.itemId;
-    return true;
+    equipped = true;
   }
   if (piece.slot == "boots") {
     inventory.equipped.bootsId = piece.itemId;
-    return true;
+    equipped = true;
   }
   if (piece.slot == "amulet") {
     inventory.equipped.amuletId = piece.itemId;
-    return true;
+    equipped = true;
   }
-  return false;
+  return equipped;
 }
 
 int gearSocketCount(int tier, bool legendary) {
@@ -113,6 +113,24 @@ int gearSocketCount(int tier, bool legendary) {
     return 1;
   }
   return 0;
+}
+
+int countItem(const InventoryState& inventory, const std::string& type, const std::string& itemId) {
+  const std::map<std::string, int>* bucket = nullptr;
+  if (type == "ore") {
+    bucket = &inventory.ore;
+  } else if (type == "ingots") {
+    bucket = &inventory.ingots;
+  } else if (type == "gems") {
+    bucket = &inventory.gems;
+  } else if (type == "trophies") {
+    bucket = &inventory.trophies;
+  }
+  if (bucket == nullptr) {
+    return 0;
+  }
+  const auto it = bucket->find(itemId);
+  return it == bucket->end() ? 0 : it->second;
 }
 
 } // namespace ed

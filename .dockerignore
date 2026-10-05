@@ -1,0 +1,11 @@
+build/
+cmake-build-*/
+.git/
+.env
+.env.*
+!.env.example
+*.sav
+*.bak
+server-data/
+postgres-data/
+.copilot/

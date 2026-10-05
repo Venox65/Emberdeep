@@ -1,5 +1,6 @@
 add_library(emberdeep_core
     src/campaign.cpp
+    src/crafting.cpp
     src/dungeon.cpp
     src/formulas.cpp
     src/game_state.cpp
@@ -7,6 +8,9 @@ add_library(emberdeep_core
     src/mining.cpp
     src/postgame.cpp
     src/pcg.cpp
+    src/save.cpp
+    src/stats.cpp
+    src/cloud.cpp
 )
 
 target_include_directories(emberdeep_core

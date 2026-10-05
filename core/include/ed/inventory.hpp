@@ -52,5 +52,6 @@ bool removeItemFromInventory(InventoryState& inventory,
                            int quantity = 1);
 bool equipGear(InventoryState& inventory, const GearPiece& piece);
 int gearSocketCount(int tier, bool legendary = false);
+int countItem(const InventoryState& inventory, const std::string& type, const std::string& itemId);
 
 } // namespace ed

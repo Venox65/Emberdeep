@@ -1,0 +1,61 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-emberdeep}
+      POSTGRES_USER: ${POSTGRES_ADMIN_USER:-emberdeep_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_ADMIN_PASSWORD:?set POSTGRES_ADMIN_PASSWORD}
+      POSTGRES_APP_USER: ${POSTGRES_APP_USER:-emberdeep_api}
+      POSTGRES_APP_PASSWORD: ${POSTGRES_APP_PASSWORD:?set POSTGRES_APP_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./server/postgres-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  api:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    restart: unless-stopped
+    environment:
+      EMBERDEEP_HOST: 0.0.0.0
+      EMBERDEEP_PORT: 8080
+      DATABASE_URL: postgres://${POSTGRES_APP_USER:-emberdeep_api}:${POSTGRES_APP_PASSWORD}@db:5432/${POSTGRES_DB:-emberdeep}
+      EMBERDEEP_TOKEN_SECRET: ${EMBERDEEP_TOKEN_SECRET:?set EMBERDEEP_TOKEN_SECRET}
+      EMBERDEEP_MAX_BODY_BYTES: ${EMBERDEEP_MAX_BODY_BYTES:-524288}
+    depends_on:
+      db:
+        condition: service_healthy
+    expose:
+      - "8080"
+    ports:
+      - "127.0.0.1:8080:8080"
+    security_opt:
+      - no-new-privileges:true
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      EMBERDEEP_DOMAIN: ${EMBERDEEP_DOMAIN:-localhost}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  postgres_data:
+  caddy_data:
+  caddy_config:

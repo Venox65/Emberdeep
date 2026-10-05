@@ -2,6 +2,7 @@
 /build/
 /build-debug/
 /build-release/
+/cmake-build-*/
 
 # Editor / OS noise
 .DS_Store
@@ -10,6 +11,9 @@
 
 # Local toolchain files
 .vcpkg-root
+.env
+.env.*
+!.env.example
 
 # Logs and caches
 *.log
@@ -18,4 +22,8 @@
 
 # Local generated data
 *.sav
+*.profile
 *.bak
+server-data/
+postgres-data/
+emberdeep-*.sql

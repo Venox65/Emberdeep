@@ -14,19 +14,26 @@ int clampToRange(int value, int minValue, int maxValue) {
   return std::max(minValue, std::min(value, maxValue));
 }
 
-const MaterialDef* findMaterialById(const std::vector<MaterialDef>& materials, const std::string& id) {
-  for (const auto& material : materials) {
-    if (material.id == id) {
-      return &material;
+const LayerDef* findLayerById(const std::vector<LayerDef>& layers, const std::string& id) {
+  for (const auto& layer : layers) {
+    if (layer.id == id) {
+      return &layer;
     }
   }
   return nullptr;
 }
 
-const LayerDef* findLayerById(const std::vector<LayerDef>& layers, const std::string& id) {
+const MaterialDef* findMaterialForTier(const std::vector<LayerDef>& layers,
+                                       const std::vector<MaterialDef>& materials,
+                                       int tier) {
   for (const auto& layer : layers) {
-    if (layer.id == id) {
-      return &layer;
+    if (layer.tier != tier) {
+      continue;
+    }
+    for (const auto& material : materials) {
+      if (material.layer == layer.id) {
+        return &material;
+      }
     }
   }
   return nullptr;
@@ -143,20 +150,9 @@ BlockSpec generateBlockForLayer(const std::vector<LayerDef>& layers,
     tier = std::min(10, layer->tier + 1);
   }
 
-  const std::string materialId = "material-" + std::to_string(tier);
-  const MaterialDef* material = nullptr;
-  for (const auto& candidate : materials) {
-    if (candidate.minLevel <= layer->minLevel && candidate.hp == materialHpForTier(tier)) {
-      material = &candidate;
-      break;
-    }
-  }
-
+  const MaterialDef* material = findMaterialForTier(layers, materials, tier);
   if (!material) {
-    material = findMaterialById(materials, "ashen-stone");
-    if (!material) {
-      throw std::invalid_argument("no material definitions available");
-    }
+    throw std::invalid_argument("no material definition exists for selected tier");
   }
 
   const Rarity rarity = rarityFromIndex(weightedRarityRoll(rng, luck));

@@ -9,3 +9,17 @@ target_include_directories(emberdeep_client
 )
 
 target_link_libraries(emberdeep_client PUBLIC emberdeep_core)
+
+add_executable(emberdeep_playtest
+    src/playtest/main.cpp
+)
+
+target_link_libraries(emberdeep_playtest PRIVATE emberdeep_client)
+
+find_package(raylib CONFIG REQUIRED)
+
+add_executable(emberdeep_graphical
+    src/app/main.cpp
+)
+
+target_link_libraries(emberdeep_graphical PRIVATE emberdeep_client raylib)
