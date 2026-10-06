@@ -1,5 +1,6 @@
 add_library(emberdeep_core
     src/campaign.cpp
+    src/boss_minigames.cpp
     src/crafting.cpp
     src/dungeon.cpp
     src/formulas.cpp

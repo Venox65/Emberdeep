@@ -18,6 +18,7 @@
 #include <raylib.h>
 
 #include "ed/campaign.hpp"
+#include "ed/boss_minigames.hpp"
 #include "ed/cloud.hpp"
 #include "ed/crafting.hpp"
 #include "ed/data_model.hpp"
@@ -94,11 +95,21 @@ struct AppState {
   int selectedBoss = 0;
   int selectedZone = 0;
   int selectedRecipe = 0;
+  int craftingScroll = 0;
   int selectedGear = 0;
   int inventoryScroll = 0;
   int campaignScore = 0;
   int campaignHeartsLost = 0;
   bool campaignAttempt = false;
+  bool campaignIntro = false;
+  ed::FrenzyDigState frenzyDig;
+  ed::BoneDuelState boneDuel;
+  ed::CinderDanceState cinderDance;
+  ed::HeadHuntState headHunt;
+  ed::ParryDuelState parryDuel;
+  ed::RuneRecallState runeRecall;
+  ed::StarTraceState starTrace;
+  ed::WyrmfireRunState wyrmfireRun;
   float blockPulse = 0.0F;
   float shake = 0.0F;
   std::string notice = "Click the block to mine.";
@@ -549,6 +560,7 @@ void attemptCampaign(AppState& app) {
     setNotice(app, "Boss locked: level or previous clear required.");
     return;
   }
+
   const auto& boss = app.bosses[index];
   const auto outcome = ed::evaluateBossAttempt(
       app.game, app.campaign, app.bosses, index,
@@ -566,6 +578,50 @@ void attemptCampaign(AppState& app) {
   }
   setNotice(app, message);
   app.campaignAttempt = false;
+}
+
+void startCampaignAttempt(AppState& app) {
+  const auto bossIndex = static_cast<std::size_t>(app.selectedBoss);
+  if (!ed::isBossUnlocked(app.game, app.campaign, app.bosses, bossIndex)) {
+    setNotice(app, "Boss locked: level or previous boss clear required.");
+    return;
+  }
+  app.campaignAttempt = true;
+  app.campaignScore = 0;
+  app.campaignHeartsLost = 0;
+  const auto challenge = app.bosses[bossIndex].challenge;
+  if (challenge == ed::BossChallenge::FrenzyDig) {
+    app.frenzyDig = ed::startFrenzyDig(
+        0xB055ULL + static_cast<std::uint64_t>(app.game.player.clicks));
+    setNotice(app, "Frenzy Dig! Click the throne rock or press Space for 10 seconds.");
+  } else if (challenge == ed::BossChallenge::BoneDuel) {
+    app.boneDuel = ed::startBoneDuel(
+        0xB00EULL + static_cast<std::uint64_t>(app.game.player.clicks));
+    setNotice(app, "Bone Duel! Stop the needle inside the green zone.");
+  } else if (challenge == ed::BossChallenge::CinderDance) {
+    app.cinderDance = ed::startCinderDance(
+        0xC1DEULL + static_cast<std::uint64_t>(app.game.player.clicks));
+    setNotice(app, "Cinder Dance! Hit D, F, J, or K on the rhythm line.");
+  } else if (challenge == ed::BossChallenge::HeadHunt) {
+    app.headHunt = ed::startHeadHunt(
+        0x1EADULL + static_cast<std::uint64_t>(app.game.player.clicks));
+    setNotice(app, "Head Hunt! Strike green heads and avoid blue decoys.");
+  } else if (challenge == ed::BossChallenge::ParryDuel) {
+    app.parryDuel = ed::startParryDuel(
+        0xA1D1CULL + static_cast<std::uint64_t>(app.game.player.clicks));
+    setNotice(app, "Parry Duel! Match the telegraphed attack direction.");
+  } else if (challenge == ed::BossChallenge::RuneRecall) {
+    app.runeRecall = ed::startRuneRecall(
+        0x7A11ULL + static_cast<std::uint64_t>(app.game.player.clicks));
+    setNotice(app, "Rune Recall! Memorize the sequence and repeat it.");
+  } else if (challenge == ed::BossChallenge::StarTrace) {
+    app.starTrace = ed::startStarTrace(
+        0x57A2ULL + static_cast<std::uint64_t>(app.game.player.clicks));
+    setNotice(app, "Star Trace! Tap the numbered stars in order.");
+  } else {
+    app.wyrmfireRun = ed::startWyrmfireRun();
+    setNotice(app, "Wyrmfire Run! Dodge waves and break the scales.");
+  }
 }
 
 void runDungeon(AppState& app) {
@@ -674,8 +730,24 @@ void drawMineScreen(const AppState& app) {
 }
 
 void drawCampaignScreen(const AppState& app) {
+  const Color caveTop{18, 21, 38, 255};
+  const Color caveBottom{42, 27, 42, 255};
+  DrawRectangleGradientV(0, 0, 1280, 720, caveTop, caveBottom);
+  DrawCircle(170, 185, 145, Color{51, 42, 67, 180});
+  DrawCircle(1110, 205, 190, Color{55, 39, 59, 180});
+  DrawTriangle({0, 0}, {170, 0}, {0, 255}, Color{10, 13, 26, 230});
+  DrawTriangle({1280, 0}, {1110, 0}, {1280, 285}, Color{10, 13, 26, 230});
+  for (int x = 70; x < 1280; x += 170) {
+    DrawTriangle({static_cast<float>(x), 0},
+                 {static_cast<float>(x + 34), 0},
+                 {static_cast<float>(x + 17), 95},
+                 Color{11, 14, 27, 255});
+  }
+  DrawRectangle(0, 610, 1280, 110, Color{22, 18, 27, 220});
+  DrawCircle(180, 600, 70, Color{31, 24, 31, 255});
+  DrawCircle(1080, 605, 90, Color{31, 24, 31, 255});
   drawTextCentered("CAMPAIGN", 108, 34, Color{224, 187, 106, 255});
-  DrawText("A / D select. ENTER starts. SPACE/click builds score. BACKSPACE submits.", 30, 155, 17,
+  DrawText("A / D select. ENTER starts. Space/click plays. BACKSPACE gives up.", 30, 155, 17,
            Color{174, 174, 187, 255});
   const auto& boss = app.bosses[static_cast<std::size_t>(app.selectedBoss)];
   const bool unlocked = ed::isBossUnlocked(app.game, app.campaign, app.bosses,
@@ -693,10 +765,268 @@ void drawCampaignScreen(const AppState& app) {
             std::to_string(app.campaign.bestStars[static_cast<std::size_t>(app.selectedBoss)]))
                .c_str(),
            300, 370, 18, Color{255, 218, 100, 255});
-  DrawText(("Current score: " + std::to_string(app.campaignScore)).c_str(), 300, 410, 23,
-           Color{122, 217, 255, 255});
-  DrawText(app.campaignAttempt ? "ATTEMPT ACTIVE" : "Press ENTER to begin", 300, 452, 18,
-           app.campaignAttempt ? Color{116, 235, 146, 255} : Color{178, 178, 190, 255});
+  if (app.campaignAttempt) {
+    DrawRectangle(0, 145, 1280, 520, Color{13, 17, 31, 255});
+    DrawCircle(140, 280, 190, Color{35, 49, 71, 255});
+    DrawCircle(1140, 300, 230, Color{48, 35, 61, 255});
+    for (int x = 40; x < 1280; x += 150) {
+      DrawTriangle({static_cast<float>(x), 145},
+                   {static_cast<float>(x + 30), 145},
+                   {static_cast<float>(x + 15), 230},
+                   Color{8, 12, 24, 255});
+    }
+    drawTextCentered(boss.name + " — BATTLE ARENA", 170, 26,
+                     Color{255, 224, 145, 255});
+  }
+  if (app.campaignIntro) {
+    DrawRectangle(210, 165, 860, 390, Color{12, 13, 25, 235});
+    DrawRectangleLinesEx({210, 165, 860, 390}, 3.0F, Color{224, 187, 106, 255});
+    drawTextCentered(boss.name, 245, 40, Color{255, 224, 145, 255});
+    drawTextCentered(boss.challenge == ed::BossChallenge::FrenzyDig
+                             ? "GRUBNOK'S FRENZY DIG"
+                                 : boss.challenge == ed::BossChallenge::BoneDuel
+                                       ? "SIR RATTLEBONE'S BONE DUEL"
+                                       : boss.challenge == ed::BossChallenge::CinderDance
+                                             ? "MORWENNA'S CINDER DANCE"
+                                             : boss.challenge == ed::BossChallenge::HeadHunt
+                                                   ? "THESSALY'S HEAD HUNT"
+                                                   : boss.challenge == ed::BossChallenge::ParryDuel
+                                                         ? "ALDRIC'S PARRY DUEL"
+                                                         : boss.challenge == ed::BossChallenge::RuneRecall
+                                                               ? "ISOLDE'S RUNE RECALL"
+                                                               : boss.challenge == ed::BossChallenge::StarTrace
+                                                                     ? "SERAPHEL'S STAR TRACE"
+                                                                     : "IGNATHIA'S WYRMFIRE RUN",
+                             305, 24, Color{199, 199, 218, 255});
+    drawTextCentered(boss.challenge == ed::BossChallenge::FrenzyDig
+                             ? "Mine the golden throne before the frenzy ends."
+                             : boss.challenge == ed::BossChallenge::BoneDuel
+                                   ? "Parry the incoming marker inside the green zone."
+                                   : boss.challenge == ed::BossChallenge::CinderDance
+                                         ? "Keep the ember rhythm alive across four lanes."
+                                         : boss.challenge == ed::BossChallenge::HeadHunt
+                                               ? "Strike real hydra heads and ignore the blue decoys."
+                                               : boss.challenge == ed::BossChallenge::ParryDuel
+                                                     ? "Match each attack direction before it lands."
+                                                     : boss.challenge == ed::BossChallenge::RuneRecall
+                                                           ? "Memorize each rune sequence, then repeat it."
+                                                           : boss.challenge == ed::BossChallenge::StarTrace
+                                                                 ? "Touch the numbered stars in order."
+                                                                 : "Dodge fire waves and break scale shields.",
+                         375, 20, Color{227, 222, 205, 255});
+    drawTextCentered("Press ENTER when ready", 470, 22, Color{122, 217, 255, 255});
+    return;
+  }
+  if (!app.campaignAttempt) {
+    DrawText("Press ENTER to view the boss title card", 300, 452, 18,
+                 Color{178, 178, 190, 255});
+    return;
+  }
+  const auto& playerStats = ed::calculatePlayerStats(app.game, app.inventory);
+  if (boss.challenge == ed::BossChallenge::FrenzyDig) {
+    DrawCircle(640, 350, 105, Color{105, 73, 48, 255});
+    DrawCircleLines(640, 350, 105, Color{235, 194, 109, 255});
+    if (app.frenzyDig.nuggetVisible) {
+      DrawCircle(640.0F + (app.frenzyDig.nuggetX - 0.5F) * 700.0F,
+                 350.0F + (app.frenzyDig.nuggetY - 0.5F) * 260.0F, 18,
+                 Color{255, 221, 72, 255});
+    }
+    DrawText(("Taps: " + std::to_string(app.frenzyDig.taps) + "   Time: " +
+              std::to_string(static_cast<int>(10.0F - app.frenzyDig.elapsed)) + "s")
+                 .c_str(),
+             410, 505, 22, RAYWHITE);
+    DrawText("Golden nugget gives +5 taps", 475, 545, 18, Color{255, 221, 72, 255});
+  } else if (boss.challenge == ed::BossChallenge::BoneDuel) {
+    DrawRectangle(360, 325, 560, 18, Color{57, 55, 70, 255});
+    const float zone = ed::boneDuelZoneWidth(
+        app.boneDuel, static_cast<double>(playerStats.focusBasisPoints) / 10000.0);
+    DrawRectangle(640 - static_cast<int>(280 * zone), 325,
+                  static_cast<int>(560 * zone), 18, Color{92, 208, 117, 255});
+    DrawRectangle(static_cast<int>(360 + 560 * app.boneDuel.needle) - 5, 300, 10, 68,
+                  Color{235, 235, 245, 255});
+    DrawLine(640, 292, 640, 375, Color{255, 221, 72, 255});
+    DrawText(("Round " + std::to_string(app.boneDuel.round) + "/8   Misses: " +
+              std::to_string(app.boneDuel.misses) + "   Perfect: " +
+              std::to_string(app.boneDuel.perfectHits))
+                 .c_str(),
+             425, 430, 21, RAYWHITE);
+    DrawText("Click or press Space to parry inside the green zone", 385, 475, 18,
+             Color{174, 235, 187, 255});
+  } else if (boss.challenge == ed::BossChallenge::CinderDance) {
+    DrawText(("Groove: " + std::to_string(app.cinderDance.groove) +
+              "   Perfect: " + std::to_string(app.cinderDance.perfectHits) +
+              "   Good: " + std::to_string(app.cinderDance.goodHits) +
+              "   Misses: " + std::to_string(app.cinderDance.misses))
+                 .c_str(),
+             390, 255, 21, RAYWHITE);
+    for (int lane = 0; lane < 4; ++lane) {
+      const int x = 350 + lane * 150;
+      DrawRectangle(x, 300, 110, 250, Color{38, 34, 53, 255});
+      DrawRectangle(x, 505, 110, 12, Color{255, 197, 80, 255});
+      const char* labels[] = {"D", "F", "J", "K"};
+      DrawText(labels[lane], x + 43, 535, 24, Color{255, 230, 160, 255});
+    }
+    for (const auto& note : app.cinderDance.chart) {
+      const float distance = note.time - app.cinderDance.elapsed;
+      if (!note.judged && distance >= -0.1F && distance <= 2.0F) {
+        const int x = 350 + note.lane * 150;
+        const int y = 505 - static_cast<int>(distance * 100.0F);
+        DrawCircle(x + 55, y, 14, Color{255, 118, 91, 255});
+      }
+    }
+    DrawText("Hit the lane when its note reaches the gold line", 405, 580, 18,
+             Color{255, 221, 150, 255});
+  } else if (boss.challenge == ed::BossChallenge::HeadHunt) {
+    DrawText(("Real heads: " + std::to_string(app.headHunt.realHits) +
+              "   Decoys: " + std::to_string(app.headHunt.decoyHits) +
+              "   Hearts lost: " + std::to_string(app.headHunt.heartsLost))
+                 .c_str(),
+             380, 255, 21, RAYWHITE);
+    for (int cell = 0; cell < 9; ++cell) {
+      const int x = 430 + (cell % 3) * 140;
+      const int y = 290 + (cell / 3) * 95;
+      DrawCircle(x + 45, y + 35, 32, Color{45, 38, 48, 255});
+      const auto target = std::find_if(
+          app.headHunt.targets.begin(), app.headHunt.targets.end(),
+          [cell](const ed::HeadHuntTarget& item) { return item.cell == cell; });
+      if (target != app.headHunt.targets.end()) {
+        DrawCircle(x + 45, y + 35, 23,
+                   target->real ? Color{79, 194, 108, 255} : Color{74, 157, 220, 255});
+        DrawCircle(x + 38, y + 29, 4, Color{240, 238, 174, 255});
+        DrawCircle(x + 52, y + 29, 4, Color{240, 238, 174, 255});
+      }
+      DrawText(std::to_string(cell + 1).c_str(), x + 40, y + 70, 16,
+               Color{180, 180, 194, 255});
+    }
+    DrawText("Click a cell or press 1-9 to strike", 455, 585, 18,
+             Color{174, 235, 187, 255});
+  } else if (boss.challenge == ed::BossChallenge::ParryDuel) {
+    DrawText(("Attack " + std::to_string(app.parryDuel.attack) + "/24   Parries: " +
+              std::to_string(app.parryDuel.successfulParries) + "   Hearts lost: " +
+              std::to_string(app.parryDuel.heartsLost))
+                 .c_str(),
+             390, 255, 21, RAYWHITE);
+    const char* directions[] = {"LEFT", "DOWN", "RIGHT"};
+    const std::string telegraph =
+        app.parryDuel.feint ? "FEINT — do not press a direction"
+                            : "INCOMING: " + std::string(directions[app.parryDuel.direction]);
+    DrawText(telegraph.c_str(), 430, 330, 22,
+             app.parryDuel.feint ? Color{255, 139, 102, 255}
+                                 : Color{255, 224, 145, 255});
+    const float reactionWindow =
+        std::max(0.35F, 0.6F - 0.25F * app.parryDuel.attack / 23.0F);
+    DrawRectangle(430, 365, 420, 10, Color{49, 45, 62, 255});
+    DrawRectangle(430, 365,
+                  static_cast<int>(420.0F *
+                                   std::clamp(1.0F - app.parryDuel.elapsed / reactionWindow,
+                                              0.0F, 1.0F)),
+                  10, Color{255, 139, 102, 255});
+    const char* labels[] = {"LEFT", "DOWN", "RIGHT"};
+    for (int direction = 0; direction < 3; ++direction) {
+      const int x = 330 + direction * 220;
+      DrawRectangleRounded({static_cast<float>(x), 390, 170, 70}, 0.15F, 8,
+                           direction == app.parryDuel.direction && !app.parryDuel.feint
+                               ? Color{108, 78, 48, 255}
+                               : Color{67, 62, 82, 255});
+      DrawText(labels[direction], x + 42, 414, 18, Color{255, 224, 145, 255});
+    }
+    DrawText("Arrow keys or click a direction", 475, 520, 18,
+             Color{190, 190, 205, 255});
+  } else if (boss.challenge == ed::BossChallenge::RuneRecall) {
+    DrawText(("Round " + std::to_string(app.runeRecall.round) + "/10   Mistakes: " +
+              std::to_string(app.runeRecall.mistakes))
+                 .c_str(),
+             465, 255, 21, RAYWHITE);
+    DrawText(app.runeRecall.showing ? "MEMORIZE THIS SEQUENCE"
+                                    : "Repeat the rune sequence with keys 1-6",
+             430, 310, 20,
+             app.runeRecall.showing ? Color{255, 224, 145, 255}
+                                    : Color{218, 211, 190, 255});
+    if (app.runeRecall.showing) {
+      std::string sequence;
+      for (const int rune : app.runeRecall.sequence) {
+        if (!sequence.empty()) sequence += "  ";
+        sequence += std::to_string(rune + 1);
+      }
+      DrawText(sequence.c_str(), 500, 345, 28, Color{255, 238, 180, 255});
+    } else {
+      DrawText(("Progress: " + std::to_string(app.runeRecall.inputIndex) + "/" +
+                std::to_string(app.runeRecall.sequence.size()))
+                   .c_str(),
+               500, 345, 20, Color{174, 235, 187, 255});
+    }
+    for (int rune = 0; rune < 6; ++rune) {
+      const int x = 285 + (rune % 3) * 245;
+      const int y = 370 + (rune / 3) * 100;
+      DrawRectangleRounded({static_cast<float>(x), static_cast<float>(y), 180, 70},
+                           0.12F, 8, Color{59, 76, 103, 255});
+      DrawText(std::to_string(rune + 1).c_str(), x + 82, y + 22, 24,
+               Color{255, 224, 145, 255});
+    }
+  }
+  if (boss.challenge == ed::BossChallenge::StarTrace) {
+    DrawText(("Time: " + std::to_string(static_cast<int>(40.0F - app.starTrace.elapsed)) +
+              "s   Constellations: " + std::to_string(app.starTrace.constellation) +
+              "   Hearts lost: " + std::to_string(app.starTrace.heartsLost))
+                 .c_str(),
+             355, 255, 21, RAYWHITE);
+    for (std::size_t index = 0; index < app.starTrace.stars.size(); ++index) {
+      const int x = 300 + static_cast<int>(app.starTrace.starX[index] * 600.0F);
+      const int y = 280 + static_cast<int>(app.starTrace.starY[index] * 300.0F);
+      DrawCircle(x, y, 30, index == static_cast<std::size_t>(app.starTrace.targetIndex)
+                               ? Color{255, 224, 105, 255}
+                               : Color{103, 137, 195, 255});
+      DrawText(std::to_string(app.starTrace.stars[index] + 1).c_str(), x - 8, y - 10, 20,
+               Color{20, 25, 43, 255});
+    }
+    DrawText("Tap the highlighted stars in order. Wrong stars cost a heart.", 375, 575, 18,
+             Color{255, 224, 145, 255});
+  } else if (boss.challenge == ed::BossChallenge::WyrmfireRun) {
+    DrawText(("Time: " + std::to_string(static_cast<int>(45.0F - app.wyrmfireRun.elapsed)) +
+              "s   Lane: " + std::to_string(app.wyrmfireRun.lane + 1) +
+              "   Embers: " + std::to_string(app.wyrmfireRun.embers) +
+              "   Hearts lost: " + std::to_string(app.wyrmfireRun.heartsLost))
+                 .c_str(),
+             350, 255, 21, RAYWHITE);
+    for (int lane = 0; lane < 3; ++lane) {
+      const int x = 420 + lane * 150;
+      DrawRectangle(x, 300, 110, 270, lane == app.wyrmfireRun.lane
+                                             ? Color{73, 84, 111, 255}
+                                             : Color{38, 34, 53, 255});
+      DrawText(std::to_string(lane + 1).c_str(), x + 48, 535, 20, Color{255, 224, 145, 255});
+    }
+    if (app.wyrmfireRun.hazardActive) {
+      const int hazardX = 420 + app.wyrmfireRun.hazardLane * 150;
+      const int hazardY = 300 + static_cast<int>(app.wyrmfireRun.hazardY * 230.0F);
+      DrawCircle(hazardX + 55, hazardY, 18, Color{255, 77, 48, 255});
+    }
+    if (app.wyrmfireRun.emberActive) {
+      const int emberX = 420 + app.wyrmfireRun.emberLane * 150;
+      const int emberY = 300 + static_cast<int>(app.wyrmfireRun.emberY * 230.0F);
+      DrawCircle(emberX + 55, emberY, 12, Color{255, 224, 72, 255});
+    }
+    DrawRectangle(535 + app.wyrmfireRun.lane * 150, 450, 35, 35,
+                  Color{255, 112, 58, 255});
+    const int flameLane =
+        static_cast<int>(app.wyrmfireRun.elapsed * 1.7F) % 3;
+    const int flameY =
+        520 - static_cast<int>(std::fmod(app.wyrmfireRun.elapsed * 130.0F, 190.0F));
+    DrawCircle(475 + flameLane * 150, flameY, 18, Color{255, 92, 44, 255});
+    DrawCircle(475 + flameLane * 150, flameY + 12, 9, Color{255, 196, 62, 255});
+    if (app.wyrmfireRun.scaleBreak) {
+      DrawRectangle(400, 275, 480, 12, Color{63, 43, 48, 255});
+      DrawRectangle(400, 275,
+                    static_cast<int>(480.0F *
+                                     std::clamp(app.wyrmfireRun.burstTaps / 25.0F,
+                                                0.0F, 1.0F)),
+                    12, Color{255, 112, 58, 255});
+    }
+    DrawText(app.wyrmfireRun.scaleBreak
+                 ? "SCALE BREAK: mash SPACE/click 25 times before the timer ends"
+                 : "Move lanes to avoid fireballs; collisions happen near your flame. Collect embers",
+             300, 600, 17, app.wyrmfireRun.scaleBreak ? Color{255, 139, 102, 255}
+                                                       : Color{255, 224, 145, 255});
+  }
 }
 
 void drawDungeonScreen(const AppState& app) {
@@ -853,18 +1183,51 @@ void drawInventoryScreen(const AppState& app) {
 void drawCraftingScreen(const AppState& app) {
   drawTextCentered("CRAFTING", 108, 34, Color{224, 187, 106, 255});
   const auto& recipe = app.recipes[static_cast<std::size_t>(app.selectedRecipe)];
-  DrawText("A / D select recipe   S smelt current ore   ENTER craft selected gear", 70, 155, 17,
+  DrawText("Scroll or W/S through material groups. Click a recipe, then ENTER to craft.", 70, 155, 17,
            Color{174, 174, 187, 255});
-  DrawRectangleRounded({220, 205, 840, 290}, 0.07F, 10, Color{53, 52, 65, 255});
-  DrawText(recipe.itemName.c_str(), 280, 245, 32, RAYWHITE);
-  DrawText(("Tier " + std::to_string(recipe.tier) + " " + recipe.slot).c_str(), 280, 290, 20,
+  const int listX = 70;
+  const int listY = 195;
+  const int listWidth = 540;
+  const int listHeight = 405;
+  DrawRectangleRounded({static_cast<float>(listX), static_cast<float>(listY),
+                        static_cast<float>(listWidth), static_cast<float>(listHeight)},
+                       0.04F, 8, Color{39, 39, 52, 255});
+  BeginScissorMode(listX, listY, listWidth, listHeight);
+  int row = 0;
+  for (int tier = 1; tier <= 10; ++tier) {
+    DrawText(("TIER " + std::to_string(tier) + " MATERIALS").c_str(), listX + 18,
+             listY + row * 42 - app.craftingScroll + 10, 16,
+             Color{224, 187, 106, 255});
+    ++row;
+    for (std::size_t index = 0; index < app.recipes.size(); ++index) {
+      const auto& item = app.recipes[index];
+      if (item.tier != tier) continue;
+      const int y = listY + row * 42 - app.craftingScroll;
+      const bool selected = static_cast<int>(index) == app.selectedRecipe;
+      DrawRectangleRounded({static_cast<float>(listX + 10), static_cast<float>(y),
+                            static_cast<float>(listWidth - 20), 36.0F},
+                           0.2F, 6, selected ? Color{104, 72, 48, 255}
+                                             : Color{53, 52, 65, 255});
+      DrawText(item.itemName.c_str(), listX + 24, y + 8, 16,
+               selected ? RAYWHITE : Color{196, 196, 207, 255});
+      DrawText(item.slot.c_str(), listX + 390, y + 9, 14, Color{177, 177, 191, 255});
+      ++row;
+    }
+  }
+  EndScissorMode();
+  DrawRectangleLinesEx({static_cast<float>(listX), static_cast<float>(listY),
+                        static_cast<float>(listWidth), static_cast<float>(listHeight)},
+                       2.0F, Color{91, 82, 104, 255});
+  DrawRectangleRounded({650, 195, 560, 405}, 0.05F, 8, Color{53, 52, 65, 255});
+  DrawText(recipe.itemName.c_str(), 700, 240, 30, RAYWHITE);
+  DrawText(("Tier " + std::to_string(recipe.tier) + " " + recipe.slot).c_str(), 700, 285, 20,
            Color{204, 175, 111, 255});
   DrawText(("Cost: " + std::to_string(recipe.ingots) + " ingots  |  " +
             std::to_string(recipe.trophies) + " trophies  |  " +
             std::to_string(recipe.gold) + " gold")
                .c_str(),
-           280, 335, 18, Color{190, 190, 202, 255});
-  DrawText(recipe.requiresGem ? "Also requires any gem" : "No gem required", 280, 370, 18,
+           700, 330, 18, Color{190, 190, 202, 255});
+  DrawText(recipe.requiresGem ? "Also requires any gem" : "No gem required", 700, 370, 18,
            recipe.requiresGem ? Color{129, 214, 241, 255} : Color{174, 174, 187, 255});
   const int oreCount = ed::countItem(app.inventory, "ore", app.blockSpec.materialId);
   const int ingotCount = ed::countItem(app.inventory, "ingots", materialIdForTier(recipe.tier));
@@ -872,8 +1235,10 @@ void drawCraftingScreen(const AppState& app) {
             std::to_string(ingotCount) + "   Dust: " +
             std::to_string(app.game.player.arcaneDust))
                .c_str(),
-           280, 420, 18, Color{180, 210, 178, 255});
-  DrawText("Smelting converts 4 ore into 1 ingot. Crafting adds gear to Inventory.", 280, 455, 16,
+           700, 410, 18, Color{180, 210, 178, 255});
+  DrawText("Smelt 4 matching ore with M. Crafting adds gear to Inventory.", 700, 455, 16,
+           Color{174, 174, 187, 255});
+  DrawText("A/D select recipe   W/S or wheel scroll groups", 700, 520, 16,
            Color{174, 174, 187, 255});
 }
 
@@ -881,6 +1246,75 @@ void updateEffects(AppState& app, float delta) {
   app.blockPulse = std::max(0.0F, app.blockPulse - delta);
   app.shake = std::max(0.0F, app.shake - delta);
   app.noticeLifetime = std::max(0.0F, app.noticeLifetime - delta);
+  if (app.screen == Screen::Campaign && app.campaignAttempt) {
+    const auto challenge = app.bosses[static_cast<std::size_t>(app.selectedBoss)].challenge;
+    if (challenge == ed::BossChallenge::FrenzyDig) {
+      ed::updateFrenzyDig(app.frenzyDig, delta, app.rng);
+      if (app.frenzyDig.finished) {
+        const auto stats = ed::calculatePlayerStats(app.game, app.inventory);
+        app.campaignScore = ed::frenzyDigScore(app.frenzyDig, stats.attack);
+        attemptCampaign(app);
+      }
+    } else if (challenge == ed::BossChallenge::StarTrace) {
+      ed::updateStarTrace(app.starTrace, delta, app.rng);
+      if (app.starTrace.finished) {
+        const auto stats = ed::calculatePlayerStats(app.game, app.inventory);
+        app.campaignScore = ed::starTraceScore(app.starTrace, stats.speed);
+        app.campaignHeartsLost = app.starTrace.heartsLost;
+        attemptCampaign(app);
+      }
+    } else if (challenge == ed::BossChallenge::WyrmfireRun) {
+      ed::updateWyrmfireRun(app.wyrmfireRun, delta);
+      if (app.wyrmfireRun.finished) {
+        const auto stats = ed::calculatePlayerStats(app.game, app.inventory);
+        app.campaignScore = ed::wyrmfireRunScore(app.wyrmfireRun, stats.speed);
+        app.campaignHeartsLost = app.wyrmfireRun.heartsLost;
+        attemptCampaign(app);
+      }
+    } else if (challenge == ed::BossChallenge::BoneDuel) {
+      ed::updateBoneDuel(app.boneDuel, delta);
+      if (app.boneDuel.finished) {
+        const auto stats = ed::calculatePlayerStats(app.game, app.inventory);
+        app.campaignScore = ed::boneDuelScore(app.boneDuel, stats.attack, stats.pierce);
+        app.campaignHeartsLost = app.boneDuel.misses;
+        if (app.boneDuel.misses >= 3) app.campaignScore = 0;
+        attemptCampaign(app);
+      }
+    } else if (challenge == ed::BossChallenge::CinderDance) {
+      ed::updateCinderDance(app.cinderDance, delta);
+      if (app.cinderDance.finished) {
+        const auto stats = ed::calculatePlayerStats(app.game, app.inventory);
+        app.campaignScore = ed::cinderDanceScore(app.cinderDance, stats.attack) / 100;
+        app.campaignHeartsLost = app.cinderDance.failed ? 3 : 0;
+        attemptCampaign(app);
+      }
+    } else if (challenge == ed::BossChallenge::HeadHunt) {
+      const auto stats = ed::calculatePlayerStats(app.game, app.inventory);
+      ed::updateHeadHunt(app.headHunt, delta, app.rng,
+                         static_cast<double>(stats.speed) / 100.0);
+      if (app.headHunt.finished) {
+        app.campaignScore = ed::headHuntScore(app.headHunt, stats.attack);
+        app.campaignHeartsLost = app.headHunt.heartsLost;
+        attemptCampaign(app);
+      }
+    } else if (challenge == ed::BossChallenge::ParryDuel) {
+      ed::updateParryDuel(app.parryDuel, delta, app.rng);
+      if (app.parryDuel.finished) {
+        const auto stats = ed::calculatePlayerStats(app.game, app.inventory);
+        app.campaignScore = ed::parryDuelScore(app.parryDuel, stats.attack);
+        app.campaignHeartsLost = app.parryDuel.heartsLost;
+        attemptCampaign(app);
+      }
+    } else if (challenge == ed::BossChallenge::RuneRecall) {
+      ed::updateRuneRecall(app.runeRecall, delta, app.rng);
+      if (app.runeRecall.finished) {
+        const auto stats = ed::calculatePlayerStats(app.game, app.inventory);
+        app.campaignScore = ed::runeRecallScore(app.runeRecall, stats.focusBasisPoints / 100);
+        app.campaignHeartsLost = app.runeRecall.mistakes;
+        attemptCampaign(app);
+      }
+    }
+  }
   if (app.game.dirty &&
       std::chrono::duration_cast<std::chrono::seconds>(
           std::chrono::steady_clock::now() - app.lastAutosave)
@@ -908,8 +1342,136 @@ void updateEffects(AppState& app, float delta) {
       app.particles.end());
 }
 
+bool handleActiveCampaignInput(AppState& app) {
+  if (app.screen != Screen::Campaign || !app.campaignAttempt) return false;
+  if (IsKeyPressed(KEY_BACKSPACE)) {
+    app.campaignAttempt = false;
+    app.campaignIntro = false;
+    setNotice(app, "Boss attempt abandoned.");
+    return true;
+  }
+
+  const auto challenge =
+      app.bosses[static_cast<std::size_t>(app.selectedBoss)].challenge;
+  if (challenge == ed::BossChallenge::FrenzyDig &&
+      (IsKeyPressed(KEY_SPACE) || IsMouseButtonPressed(MOUSE_BUTTON_LEFT))) {
+    const Vector2 mouse = GetMousePosition();
+    const float normalizedX = std::clamp((mouse.x - 290.0F) / 700.0F, 0.0F, 1.0F);
+    const float normalizedY = std::clamp((mouse.y - 220.0F) / 260.0F, 0.0F, 1.0F);
+    ed::tapFrenzyDig(app.frenzyDig, normalizedX, normalizedY, app.rng);
+    return true;
+  }
+  if (challenge == ed::BossChallenge::BoneDuel &&
+      (IsKeyPressed(KEY_SPACE) || IsMouseButtonPressed(MOUSE_BUTTON_LEFT))) {
+    const auto stats = ed::calculatePlayerStats(app.game, app.inventory);
+    if (!ed::strikeBoneDuel(
+            app.boneDuel, static_cast<double>(stats.focusBasisPoints) / 10000.0)) {
+      setNotice(app, "Miss! The needle must be inside the green zone.");
+    }
+    return true;
+  }
+  if (challenge == ed::BossChallenge::CinderDance) {
+    const auto stats = ed::calculatePlayerStats(app.game, app.inventory);
+    const int keys[] = {KEY_D, KEY_F, KEY_J, KEY_K};
+    for (int lane = 0; lane < 4; ++lane) {
+      if (IsKeyPressed(keys[lane])) {
+        ed::judgeCinderDance(
+            app.cinderDance, lane,
+            static_cast<double>(stats.focusBasisPoints) / 10000.0);
+      }
+    }
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+      const Vector2 mouse = GetMousePosition();
+      if (mouse.y >= 290.0F && mouse.y <= 550.0F) {
+        const int lane = static_cast<int>((mouse.x - 350.0F) / 150.0F);
+        if (lane >= 0 && lane < 4) {
+          ed::judgeCinderDance(
+              app.cinderDance, lane,
+              static_cast<double>(stats.focusBasisPoints) / 10000.0);
+        }
+      }
+    }
+    return true;
+  }
+  if (challenge == ed::BossChallenge::HeadHunt) {
+    int cell = -1;
+    const int keys[] = {KEY_ONE, KEY_TWO, KEY_THREE, KEY_FOUR, KEY_FIVE,
+                        KEY_SIX, KEY_SEVEN, KEY_EIGHT, KEY_NINE};
+    for (int index = 0; index < 9; ++index) {
+      if (IsKeyPressed(keys[index])) cell = index;
+    }
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+      const Vector2 mouse = GetMousePosition();
+      if (mouse.x >= 430.0F && mouse.x < 850.0F &&
+          mouse.y >= 290.0F && mouse.y < 575.0F) {
+        const int column = static_cast<int>((mouse.x - 430.0F) / 140.0F);
+        const int row = static_cast<int>((mouse.y - 290.0F) / 95.0F);
+        if (column < 3 && row < 3) cell = row * 3 + column;
+      }
+    }
+    if (cell >= 0) ed::hitHeadHunt(app.headHunt, cell);
+    return true;
+  }
+  if (challenge == ed::BossChallenge::ParryDuel) {
+    int direction = -1;
+    if (IsKeyPressed(KEY_LEFT)) direction = 0;
+    if (IsKeyPressed(KEY_DOWN)) direction = 1;
+    if (IsKeyPressed(KEY_RIGHT)) direction = 2;
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+      const Vector2 mouse = GetMousePosition();
+      if (mouse.y >= 390.0F && mouse.y <= 460.0F &&
+          mouse.x >= 330.0F && mouse.x < 990.0F) {
+        direction = std::clamp(static_cast<int>((mouse.x - 330.0F) / 220.0F), 0, 2);
+      }
+    }
+    if (direction >= 0 && !ed::parryDuelInput(app.parryDuel, direction)) {
+      setNotice(app, "Wrong parry or feint.");
+    }
+    return true;
+  }
+  if (challenge == ed::BossChallenge::RuneRecall) {
+    int rune = -1;
+    const int keys[] = {KEY_ONE, KEY_TWO, KEY_THREE, KEY_FOUR, KEY_FIVE, KEY_SIX};
+    for (int index = 0; index < 6; ++index) {
+      if (IsKeyPressed(keys[index])) rune = index;
+    }
+    if (rune >= 0 && !ed::inputRuneRecall(app.runeRecall, rune)) {
+      setNotice(app, "Wrong rune. The sequence resets.");
+    }
+    return true;
+  }
+  if (challenge == ed::BossChallenge::StarTrace) {
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+      const Vector2 mouse = GetMousePosition();
+      for (std::size_t index = 0; index < app.starTrace.stars.size(); ++index) {
+        const int x = 300 + static_cast<int>(app.starTrace.starX[index] * 600.0F);
+        const int y = 280 + static_cast<int>(app.starTrace.starY[index] * 300.0F);
+        if (CheckCollisionPointCircle(mouse, {static_cast<float>(x), static_cast<float>(y)}, 34.0F)) {
+          ed::hitStarTrace(app.starTrace, app.starTrace.stars[index]);
+          break;
+        }
+      }
+    }
+    return true;
+  }
+  if (challenge == ed::BossChallenge::WyrmfireRun) {
+    if (IsKeyPressed(KEY_LEFT) || IsKeyPressed(KEY_A)) ed::moveWyrmfireRun(app.wyrmfireRun, -1);
+    if (IsKeyPressed(KEY_RIGHT) || IsKeyPressed(KEY_D)) ed::moveWyrmfireRun(app.wyrmfireRun, 1);
+    if (IsKeyPressed(KEY_SPACE) || IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+      ed::tapWyrmfireRun(app.wyrmfireRun);
+    }
+    return true;
+  }
+  return true;
+}
+
 void handleInput(AppState& app) {
-  if (IsKeyPressed(KEY_F)) {
+  if (handleActiveCampaignInput(app)) return;
+  const bool cinderDanceActive =
+      app.screen == Screen::Campaign && app.campaignAttempt &&
+      app.bosses[static_cast<std::size_t>(app.selectedBoss)].challenge ==
+          ed::BossChallenge::CinderDance;
+  if (IsKeyPressed(KEY_F) && !cinderDanceActive) {
     signOut(app);
     return;
   }
@@ -1023,7 +1585,42 @@ void handleInput(AppState& app) {
                                     app.selectedRecipe + 1);
     }
     const auto& recipe = app.recipes[static_cast<std::size_t>(app.selectedRecipe)];
+    if (IsKeyPressed(KEY_W)) {
+      app.craftingScroll = std::max(0, app.craftingScroll - 120);
+    }
     if (IsKeyPressed(KEY_S)) {
+      app.craftingScroll += 120;
+    }
+    const float wheel = GetMouseWheelMove();
+    if (wheel != 0.0F) {
+      app.craftingScroll -= static_cast<int>(wheel * 80.0F);
+    }
+    const int craftingContentHeight =
+        (10 + static_cast<int>(app.recipes.size())) * 42;
+    app.craftingScroll = std::clamp(app.craftingScroll, 0, craftingContentHeight - 405);
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+      const Vector2 mouse = GetMousePosition();
+      if (mouse.x >= 70.0F && mouse.x < 610.0F &&
+          mouse.y >= 195.0F && mouse.y < 600.0F) {
+        const int targetRow =
+            (static_cast<int>(mouse.y) - 195 + app.craftingScroll) / 42;
+        int row = 0;
+        bool selected = false;
+        for (int tier = 1; tier <= 10 && !selected; ++tier) {
+          ++row;
+          for (std::size_t index = 0; index < app.recipes.size(); ++index) {
+            if (app.recipes[index].tier != tier) continue;
+            if (row == targetRow) {
+              app.selectedRecipe = static_cast<int>(index);
+              selected = true;
+              break;
+            }
+            ++row;
+          }
+        }
+      }
+    }
+    if (IsKeyPressed(KEY_M)) {
       const int tier = std::clamp(recipe.tier, 1, 10);
       const int recipeLayer = std::clamp(tier - 1, 0, static_cast<int>(app.layers.size()) - 1);
       if (!ed::canUnlockLayer(app.game, app.layers[static_cast<std::size_t>(recipeLayer)])) {
@@ -1052,6 +1649,7 @@ void handleInput(AppState& app) {
         app.selectedBoss = nextBoss;
         app.campaignScore = 0;
         app.campaignAttempt = false;
+        app.campaignIntro = false;
       }
     }
     if (IsKeyPressed(KEY_D)) {
@@ -1065,30 +1663,92 @@ void handleInput(AppState& app) {
         app.selectedBoss = nextBoss;
         app.campaignScore = 0;
         app.campaignAttempt = false;
+        app.campaignIntro = false;
       }
     }
     if (IsKeyPressed(KEY_ENTER)) {
-      const auto bossIndex = static_cast<std::size_t>(app.selectedBoss);
-      if (!ed::isBossUnlocked(app.game, app.campaign, app.bosses, bossIndex)) {
-        const auto& boss = app.bosses[bossIndex];
-        if (app.game.player.level < boss.minLevel) {
-          setNotice(app, "Boss locked. Reach level " + std::to_string(boss.minLevel) + ".");
-        } else if (app.selectedBoss > 0 &&
-                   !app.campaign.cleared[static_cast<std::size_t>(app.selectedBoss - 1)]) {
-          setNotice(app, "Boss locked. Clear the previous boss first.");
+      if (!app.campaignAttempt) {
+        const auto bossIndex = static_cast<std::size_t>(app.selectedBoss);
+        if (!ed::isBossUnlocked(app.game, app.campaign, app.bosses, bossIndex)) {
+          const auto& lockedBoss = app.bosses[bossIndex];
+          setNotice(app, "Boss locked. Reach level " + std::to_string(lockedBoss.minLevel) +
+                             " and clear the previous boss.");
+        } else if (app.campaignIntro) {
+          app.campaignIntro = false;
+          startCampaignAttempt(app);
         } else {
-          setNotice(app, "Boss locked. Meet its requirements first.");
+          app.campaignIntro = true;
         }
-      } else {
-        app.campaignAttempt = true;
-        app.campaignScore = 0;
-        app.campaignHeartsLost = 0;
       }
     }
-    if (app.campaignAttempt && (IsKeyPressed(KEY_SPACE) || IsMouseButtonPressed(MOUSE_BUTTON_LEFT))) {
-      ++app.campaignScore;
+    if (app.campaignAttempt) {
+      const auto challenge =
+          app.bosses[static_cast<std::size_t>(app.selectedBoss)].challenge;
+      if (challenge == ed::BossChallenge::FrenzyDig &&
+          (IsKeyPressed(KEY_SPACE) || IsMouseButtonPressed(MOUSE_BUTTON_LEFT))) {
+        const Vector2 mouse = GetMousePosition();
+        const float normalizedX = std::clamp((mouse.x - 290.0F) / 700.0F, 0.0F, 1.0F);
+        const float normalizedY = std::clamp((mouse.y - 220.0F) / 260.0F, 0.0F, 1.0F);
+        ed::tapFrenzyDig(app.frenzyDig, normalizedX, normalizedY, app.rng);
+      }
+      if (challenge == ed::BossChallenge::BoneDuel &&
+          (IsKeyPressed(KEY_SPACE) || IsMouseButtonPressed(MOUSE_BUTTON_LEFT))) {
+        const auto stats = ed::calculatePlayerStats(app.game, app.inventory);
+        if (!ed::strikeBoneDuel(
+                app.boneDuel, static_cast<double>(stats.focusBasisPoints) / 10000.0)) {
+          setNotice(app, "Miss! The needle must be inside the green zone.");
+        }
+      }
+      if (challenge == ed::BossChallenge::CinderDance) {
+        const auto stats = ed::calculatePlayerStats(app.game, app.inventory);
+        const int keys[] = {KEY_D, KEY_F, KEY_J, KEY_K};
+        for (int lane = 0; lane < 4; ++lane) {
+          if (IsKeyPressed(keys[lane])) {
+            ed::judgeCinderDance(
+                app.cinderDance, lane,
+                static_cast<double>(stats.focusBasisPoints) / 10000.0);
+          }
+        }
+        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+          const Vector2 mouse = GetMousePosition();
+          if (mouse.y >= 290.0F && mouse.y <= 550.0F) {
+            const int lane = static_cast<int>((mouse.x - 350.0F) / 150.0F);
+            if (lane >= 0 && lane < 4) {
+              ed::judgeCinderDance(
+                  app.cinderDance, lane,
+                  static_cast<double>(stats.focusBasisPoints) / 10000.0);
+            }
+          }
+        }
+      }
+      if (challenge == ed::BossChallenge::HeadHunt &&
+          (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) ||
+           IsKeyPressed(KEY_ONE) || IsKeyPressed(KEY_TWO) || IsKeyPressed(KEY_THREE) ||
+           IsKeyPressed(KEY_FOUR) || IsKeyPressed(KEY_FIVE) || IsKeyPressed(KEY_SIX) ||
+           IsKeyPressed(KEY_SEVEN) || IsKeyPressed(KEY_EIGHT) || IsKeyPressed(KEY_NINE))) {
+        int cell = -1;
+        const int keys[] = {KEY_ONE, KEY_TWO, KEY_THREE, KEY_FOUR, KEY_FIVE,
+                            KEY_SIX, KEY_SEVEN, KEY_EIGHT, KEY_NINE};
+        for (int index = 0; index < 9; ++index) {
+          if (IsKeyPressed(keys[index])) cell = index;
+        }
+        if (cell < 0 && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+          const Vector2 mouse = GetMousePosition();
+          if (mouse.x >= 430.0F && mouse.x < 850.0F &&
+              mouse.y >= 290.0F && mouse.y < 575.0F) {
+            const int column = static_cast<int>((mouse.x - 430.0F) / 140.0F);
+            const int row = static_cast<int>((mouse.y - 290.0F) / 95.0F);
+            if (column < 3 && row < 3) cell = row * 3 + column;
+          }
+        }
+        if (cell >= 0) ed::hitHeadHunt(app.headHunt, cell);
+      }
     }
-    if (IsKeyPressed(KEY_BACKSPACE) && app.campaignAttempt) attemptCampaign(app);
+    if (IsKeyPressed(KEY_BACKSPACE) && (app.campaignAttempt || app.campaignIntro)) {
+      app.campaignAttempt = false;
+      app.campaignIntro = false;
+      setNotice(app, "Boss attempt abandoned.");
+    }
   } else if (app.screen == Screen::Dungeon) {
     if (IsKeyPressed(KEY_A)) {
       const int nextZone = std::max(0, app.selectedZone - 1);

@@ -10,6 +10,7 @@ FetchContent_MakeAvailable(Catch2)
 
 add_executable(emberdeep_core_tests
     core/test_campaign.cpp
+    core/test_boss_minigames.cpp
     core/test_crafting.cpp
     core/test_dungeon.cpp
     core/test_formulas.cpp
