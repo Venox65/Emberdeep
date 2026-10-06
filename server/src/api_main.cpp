@@ -11,6 +11,7 @@
 #include <unistd.h>
 
 #include <filesystem>
+#include <algorithm>
 #include <cstdlib>
 #include <fstream>
 #include <iomanip>
@@ -20,6 +21,7 @@
 #include <random>
 #include <sstream>
 #include <string>
+#include <vector>
 
 namespace {
 
@@ -61,7 +63,16 @@ public:
       postgres_ = std::make_unique<ed::server::PostgresBackend>(databaseUrl);
       const char* migrations = std::getenv("EMBERDEEP_MIGRATIONS");
       if (postgres_ != nullptr && migrations != nullptr) {
-        postgresReady_ = postgres_->migrate(std::string(migrations) + "/0001_init.sql");
+        postgresReady_ = true;
+        std::vector<std::filesystem::path> migrationFiles;
+        for (const auto& entry : std::filesystem::directory_iterator(migrations)) {
+          if (!entry.is_regular_file() || entry.path().extension() != ".sql") continue;
+          migrationFiles.push_back(entry.path());
+        }
+        std::sort(migrationFiles.begin(), migrationFiles.end());
+        for (const auto& migration : migrationFiles) {
+          postgresReady_ = postgres_->migrate(migration.string()) && postgresReady_;
+        }
       }
     }
 #endif

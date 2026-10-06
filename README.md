@@ -64,6 +64,12 @@ available at `http://127.0.0.1:8080`.
 Existing database volumes created before the split PostgreSQL roles need the
 one-time upgrade script documented in `deploy/README.md`.
 
+PostgreSQL data lives in the `postgres_data` volume, and API fallback state lives
+in `api_data`, so recreating containers does not remove saved data. Authenticated
+sessions default to 30 days (`EMBERDEEP_ACCESS_TOKEN_TTL_SECONDS`); migration
+`0003` extends existing active sessions once so a server relaunch does not
+invalidate the token stored by the desktop client.
+
 ## Accounts and local saves
 
 Guest progress is stored locally. Signed-in progress is stored locally and

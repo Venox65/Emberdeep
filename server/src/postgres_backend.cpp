@@ -5,6 +5,9 @@
 
 #include <sstream>
 #include <fstream>
+#include <charconv>
+#include <cstring>
+#include <cstdlib>
 
 namespace ed::server {
 namespace {
@@ -29,6 +32,17 @@ std::string hex(const std::string& value) {
     result.push_back(digits[byte & 15]);
   }
   return result;
+}
+
+long long accessTokenTtlSeconds() {
+  const char* configured = std::getenv("EMBERDEEP_ACCESS_TOKEN_TTL_SECONDS");
+  if (configured == nullptr || *configured == '\0') return 30LL * 24LL * 60LL * 60LL;
+  long long value = 0;
+  const auto end = configured + std::strlen(configured);
+  const auto parsed = std::from_chars(configured, end, value);
+  return parsed.ec == std::errc{} && parsed.ptr == end && value > 0
+             ? value
+             : 30LL * 24LL * 60LL * 60LL;
 }
 
 } // namespace
@@ -96,13 +110,15 @@ AuthResult PostgresBackend::loginUser(const std::string& username, const std::st
   }
   PQclear(result);
   const auto rawToken = token();
-  const char* tokenValues[] = {username.c_str(), rawToken.c_str()};
+  const auto ttl = std::to_string(accessTokenTtlSeconds());
+  const char* tokenValues[] = {username.c_str(), rawToken.c_str(), ttl.c_str()};
   result = PQexecParams(
       impl_->connection,
       "INSERT INTO access_tokens(token_hash,account_id,expires_at) "
-      "SELECT digest($2,'sha256'),id,now()+interval '15 minutes' FROM accounts WHERE username=$1 "
+      "SELECT digest($2,'sha256'),id,now()+($3::bigint * interval '1 second') "
+      "FROM accounts WHERE username=$1 "
       "RETURNING token_hash",
-      2, nullptr, tokenValues, nullptr, nullptr, 0);
+      3, nullptr, tokenValues, nullptr, nullptr, 0);
   const bool ok = PQresultStatus(result) == PGRES_TUPLES_OK;
   PQclear(result);
   return ok ? AuthResult{true, 200, username, rawToken, {}} :

@@ -95,6 +95,7 @@ struct AppState {
   int selectedZone = 0;
   int selectedRecipe = 0;
   int selectedGear = 0;
+  int inventoryScroll = 0;
   int campaignScore = 0;
   int campaignHeartsLost = 0;
   bool campaignAttempt = false;
@@ -138,6 +139,26 @@ void requestSave(AppState& app) {
     app.pendingSave = makeSnapshot(app);
   }
   app.saveCondition.notify_one();
+  app.game.dirty = false;
+}
+
+void saveNow(AppState& app) {
+  const auto snapshot = makeSnapshot(app);
+  if (!ed::writeSaveAtomic(app.savePath, snapshot)) {
+    setNotice(app, "Save failed: local save could not be written.");
+    return;
+  }
+  if (app.account.mode == "account" && !app.account.token.empty()) {
+    const auto result = ed::cloudSave(app.backendHost, app.backendPort, app.account.token, snapshot);
+    if (!result.ok) {
+      setNotice(app, "Local save stored; cloud sync failed: " + result.error);
+      return;
+    }
+    setNotice(app, "Save stored locally and synced to the cloud.");
+    app.game.dirty = false;
+    return;
+  }
+  setNotice(app, "Local save stored.");
   app.game.dirty = false;
 }
 
@@ -373,6 +394,86 @@ void spawnBlock(AppState& app) {
   app.block = ed::createMiningProgress(app.blockSpec);
 }
 
+std::string layerLockReason(const ed::GameState& game, const ed::LayerDef& layer) {
+  std::string message = layer.name + " is locked. ";
+  if (game.player.level < layer.minLevel) {
+    message += "Reach level " + std::to_string(layer.minLevel) + ".";
+  } else if (game.player.pickaxeTier < layer.requiredPickaxeTier) {
+    message += "Equip a tier " + std::to_string(layer.requiredPickaxeTier) + " pickaxe.";
+  }
+  return message;
+}
+
+int layerIndexForId(const AppState& app, const std::string& id) {
+  for (std::size_t i = 0; i < app.layers.size(); ++i) {
+    if (app.layers[i].id == id) return static_cast<int>(i);
+  }
+  return -1;
+}
+
+void changeLayer(AppState& app, int direction) {
+  const int currentIndex = app.layerIndex;
+  const int nextIndex = std::clamp(
+      currentIndex + direction, 0, static_cast<int>(app.layers.size()) - 1);
+  if (nextIndex == currentIndex) {
+    setNotice(app, direction < 0 ? "You are already at the first layer."
+                                 : "You are already at the deepest unlocked layer.");
+    return;
+  }
+
+  const auto& nextLayer = app.layers[static_cast<std::size_t>(nextIndex)];
+  if (!ed::canUnlockLayer(app.game, nextLayer)) {
+    setNotice(app, layerLockReason(app.game, nextLayer));
+    return;
+  }
+
+  app.layerIndex = nextIndex;
+  app.game.player.currentLayer = nextLayer.id;
+  spawnBlock(app);
+  app.game.dirty = true;
+}
+
+std::string craftFailureReason(const AppState& app, const ed::CraftRecipe& recipe) {
+  const int recipeLayer = std::clamp(recipe.tier - 1, 0, static_cast<int>(app.layers.size()) - 1);
+  if (!ed::canUnlockLayer(app.game, app.layers[static_cast<std::size_t>(recipeLayer)])) {
+    return layerLockReason(app.game, app.layers[static_cast<std::size_t>(recipeLayer)]);
+  }
+  if (app.game.player.gold < recipe.gold) {
+    return "Need " + std::to_string(recipe.gold - app.game.player.gold) + " more gold.";
+  }
+  const std::string materialId = materialIdForTier(recipe.tier);
+  const int ingots = ed::countItem(app.inventory, "ingots", materialId);
+  if (ingots < recipe.ingots) {
+    return "Need " + std::to_string(recipe.ingots - ingots) + " more " + materialId + " ingot(s).";
+  }
+  const std::string trophyId = "zone-" + std::to_string(recipe.tier);
+  const int trophies = ed::countItem(app.inventory, "trophies", trophyId);
+  if (trophies < recipe.trophies) {
+    return "Need " + std::to_string(recipe.trophies - trophies) + " more tier " +
+           std::to_string(recipe.tier) + " dungeon trophy/trophies.";
+  }
+  if (recipe.requiresGem && app.inventory.gems.empty()) {
+    return "Find at least one gem before crafting an amulet.";
+  }
+  return "Crafting requirements are not met.";
+}
+
+bool dungeonUnlocked(const AppState& app, int zoneIndex) {
+  if (zoneIndex < 0 || zoneIndex >= static_cast<int>(app.zones.size())) return false;
+  const int index = layerIndexForId(app, app.zones[static_cast<std::size_t>(zoneIndex)].id);
+  return index >= 0 && ed::canUnlockLayer(app.game, app.layers[static_cast<std::size_t>(index)]);
+}
+
+std::string dungeonLockReason(const AppState& app, int zoneIndex) {
+  if (zoneIndex < 0 || zoneIndex >= static_cast<int>(app.zones.size())) {
+    return "That dungeon does not exist.";
+  }
+  const auto& zone = app.zones[static_cast<std::size_t>(zoneIndex)];
+  const int index = layerIndexForId(app, zone.id);
+  return index >= 0 ? layerLockReason(app.game, app.layers[static_cast<std::size_t>(index)])
+                    : zone.name + " is not available.";
+}
+
 void resetToAccountChoice(AppState& app) {
   app.game = ed::GameState{};
   app.inventory = ed::InventoryState{};
@@ -518,6 +619,8 @@ void drawTopBar(const AppState& app) {
            Color{255, 139, 65, 255});
   DrawText("1 Mine   2 Inventory   3 Crafting   4 Campaign   5 Dungeon   6 Profile   F5 Save", 26, 55, 15,
            Color{156, 156, 173, 255});
+  DrawRectangleRounded({1010, 14, 72, 34}, 0.2F, 8, Color{52, 76, 67, 255});
+  DrawText("SAVE", 1026, 24, 15, Color{210, 255, 220, 255});
   DrawRectangleRounded({1090, 14, 160, 34}, 0.2F, 8, Color{82, 52, 53, 255});
   DrawText("SIGN OUT", 1120, 24, 15, Color{255, 210, 210, 255});
 }
@@ -630,17 +733,75 @@ void drawProfileScreen(const AppState& app) {
   DrawText("Procedural paper-doll preview", 520, 530, 17, Color{177, 177, 188, 255});
 }
 
+int inventoryGearStartY(const AppState& app) {
+  int y = 205;
+  const auto advanceBucket = [&y](const std::map<std::string, int>& bucket) {
+    int x = 250;
+    for (const auto& [_, count] : bucket) {
+      static_cast<void>(count);
+      x += 155;
+      if (x > 1100) {
+        x = 250;
+        y += 42;
+      }
+    }
+    y += 48;
+  };
+  advanceBucket(app.inventory.ore);
+  advanceBucket(app.inventory.ingots);
+  advanceBucket(app.inventory.trophies);
+  advanceBucket(app.inventory.gems);
+  return y + 42;
+}
+
+void syncGearScroll(AppState& app) {
+  if (app.inventory.gear.empty()) {
+    app.selectedGear = 0;
+    return;
+  }
+  app.selectedGear = std::clamp(app.selectedGear, 0,
+                                static_cast<int>(app.inventory.gear.size()) - 1);
+  constexpr int contentTop = 140;
+  constexpr int contentBottom = 655;
+  const int gearStart = inventoryGearStartY(app);
+  const int selectedTop = gearStart + (app.selectedGear / 3) * 70;
+  const int selectedBottom = selectedTop + 52;
+  if (selectedTop - app.inventoryScroll < contentTop) {
+    app.inventoryScroll = selectedTop - contentTop;
+  } else if (selectedBottom - app.inventoryScroll > contentBottom) {
+    app.inventoryScroll = selectedBottom - contentBottom;
+  }
+}
+
+int inventoryContentHeight(const AppState& app) {
+  const int gearStart = inventoryGearStartY(app);
+  const int gearRows = (static_cast<int>(app.inventory.gear.size()) + 2) / 3;
+  return app.inventory.gear.empty() ? gearStart + 30 : gearStart + gearRows * 70 + 45;
+}
+
+void clampInventoryScroll(AppState& app) {
+  constexpr int contentTop = 140;
+  constexpr int contentBottom = 655;
+  const int maxScroll = std::max(0, inventoryContentHeight(app) - contentBottom);
+  app.inventoryScroll = std::clamp(app.inventoryScroll, 0, maxScroll);
+  syncGearScroll(app);
+  app.inventoryScroll = std::clamp(app.inventoryScroll, 0, maxScroll);
+}
+
 void drawInventoryScreen(const AppState& app) {
   drawTextCentered("INVENTORY", 108, 34, Color{224, 187, 106, 255});
-  DrawText("Resources", 70, 164, 24, Color{235, 224, 191, 255});
+  DrawText("Mouse wheel or W/S scroll inventory", 70, 134, 15, Color{174, 174, 187, 255});
+  BeginScissorMode(0, 140, 1280, 515);
+  const int offset = app.inventoryScroll;
+  DrawText("Resources", 70, 164 - offset, 24, Color{235, 224, 191, 255});
   int y = 205;
   const auto drawBucket = [&](const char* title, const std::map<std::string, int>& bucket) {
-    DrawText(title, 70, y, 18, Color{174, 174, 187, 255});
+    DrawText(title, 70, y - offset, 18, Color{174, 174, 187, 255});
     int x = 250;
     for (const auto& [id, count] : bucket) {
-      DrawRectangleRounded({static_cast<float>(x), static_cast<float>(y - 5), 145, 34}, 0.18F, 6,
+      DrawRectangleRounded({static_cast<float>(x), static_cast<float>(y - 5 - offset), 145, 34}, 0.18F, 6,
                            Color{52, 52, 67, 255});
-      DrawText((id + " x" + std::to_string(count)).c_str(), x + 8, y + 4, 14, RAYWHITE);
+      DrawText((id + " x" + std::to_string(count)).c_str(), x + 8, y + 4 - offset, 14, RAYWHITE);
       x += 155;
       if (x > 1100) {
         x = 250;
@@ -653,28 +814,40 @@ void drawInventoryScreen(const AppState& app) {
   drawBucket("Ingots", app.inventory.ingots);
   drawBucket("Trophies", app.inventory.trophies);
   drawBucket("Gems", app.inventory.gems);
-  DrawText("Gear", 70, y, 24, Color{235, 224, 191, 255});
+  DrawText("Gear", 70, y - offset, 24, Color{235, 224, 191, 255});
   y += 42;
   if (app.inventory.gear.empty()) {
-    DrawText("No gear crafted yet. Mine ore, smelt it, then visit Crafting.", 70, y, 18,
+    DrawText("No gear crafted yet. Mine ore, smelt it, then visit Crafting.", 70, y - offset, 18,
              Color{174, 174, 187, 255});
   } else {
-    for (std::size_t i = 0; i < app.inventory.gear.size() && i < 6; ++i) {
-      const auto& piece = app.inventory.gear[i];
-      const bool selected = static_cast<int>(i) == app.selectedGear;
-      DrawRectangleRounded({70.0F + static_cast<float>(i % 3) * 370.0F,
-                            static_cast<float>(y + (i / 3) * 70), 330, 52},
+    constexpr int cardWidth = 330;
+    constexpr int cardHeight = 52;
+    constexpr int cardGap = 18;
+    constexpr int rowHeight = 70;
+    for (std::size_t index = 0; index < app.inventory.gear.size(); ++index) {
+      const auto& piece = app.inventory.gear[static_cast<std::size_t>(index)];
+      const int column = static_cast<int>(index % 3);
+      const int row = static_cast<int>(index / 3);
+      const bool selected = static_cast<int>(index) == app.selectedGear;
+      DrawRectangleRounded({70.0F + static_cast<float>(column) * 370.0F,
+                            static_cast<float>(y + row * rowHeight - offset), cardWidth, cardHeight},
                            0.12F, 6, selected ? Color{112, 76, 45, 255} : Color{52, 52, 67, 255});
       DrawText((piece.name + " +" + std::to_string(piece.upgradeLevel)).c_str(),
-               84 + static_cast<int>(i % 3) * 370, y + static_cast<int>(i / 3) * 70 + 8, 17,
+               84 + column * 370, y + row * rowHeight + 8 - offset, 17,
                RAYWHITE);
       DrawText(("Tier " + std::to_string(piece.tier) + " | " + piece.slot).c_str(),
-               84 + static_cast<int>(i % 3) * 370, y + static_cast<int>(i / 3) * 70 + 30, 13,
+               84 + column * 370, y + row * rowHeight + 30 - offset, 13,
                Color{180, 180, 192, 255});
     }
-    DrawText("A / D select gear   U upgrade selected   E equip selected", 70, 570, 17,
-             Color{174, 174, 187, 255});
   }
+  EndScissorMode();
+  DrawRectangle(0, 630, 1280, 35, Color{28, 27, 39, 255});
+  DrawText(("Gear " + std::to_string(app.selectedGear + 1) + "/" +
+            std::to_string(app.inventory.gear.size()) + "   Scroll: mouse wheel or W/S")
+               .c_str(),
+           70, 640, 15, Color{174, 174, 187, 255});
+  DrawText("A / D select gear   U upgrade selected   E equip selected", 420, 640, 15,
+           Color{174, 174, 187, 255});
 }
 
 void drawCraftingScreen(const AppState& app) {
@@ -741,12 +914,16 @@ void handleInput(AppState& app) {
     return;
   }
   if (IsKeyPressed(KEY_F5)) {
-    requestSave(app);
+    saveNow(app);
     app.lastAutosave = std::chrono::steady_clock::now();
-    setNotice(app, "Game saved.");
   }
   if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
     const Vector2 mouse = GetMousePosition();
+    if (CheckCollisionPointRec(mouse, {1010, 14, 72, 34})) {
+      saveNow(app);
+      app.lastAutosave = std::chrono::steady_clock::now();
+      return;
+    }
     if (CheckCollisionPointRec(mouse, {1090, 14, 160, 34})) {
       signOut(app);
       return;
@@ -774,14 +951,10 @@ void handleInput(AppState& app) {
 
   if (app.screen == Screen::Mine) {
     if (IsKeyPressed(KEY_Q)) {
-      app.layerIndex = std::max(0, app.layerIndex - 1);
-      app.game.player.currentLayer = app.layers[static_cast<std::size_t>(app.layerIndex)].id;
-      spawnBlock(app);
+      changeLayer(app, -1);
     }
     if (IsKeyPressed(KEY_E)) {
-      app.layerIndex = std::min(static_cast<int>(app.layers.size()) - 1, app.layerIndex + 1);
-      app.game.player.currentLayer = app.layers[static_cast<std::size_t>(app.layerIndex)].id;
-      spawnBlock(app);
+      changeLayer(app, 1);
     }
     if (IsKeyPressed(KEY_SPACE)) mine(app, {640, 305});
     if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
@@ -796,9 +969,41 @@ void handleInput(AppState& app) {
       app.selectedGear = std::min(static_cast<int>(app.inventory.gear.size()) - 1,
                                   app.selectedGear + 1);
     }
+    if (IsKeyPressed(KEY_W)) {
+      app.inventoryScroll -= 120;
+    }
+    if (IsKeyPressed(KEY_S)) {
+      app.inventoryScroll += 120;
+    }
+    const float wheel = GetMouseWheelMove();
+    if (wheel != 0.0F) {
+      app.inventoryScroll -= static_cast<int>(wheel * 80.0F);
+    }
+    clampInventoryScroll(app);
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && !app.inventory.gear.empty()) {
+      const int gearY = inventoryGearStartY(app) - app.inventoryScroll;
+      const Vector2 mouse = GetMousePosition();
+      if (mouse.y >= gearY && mouse.y < gearY + inventoryContentHeight(app) &&
+          mouse.x >= 70.0F && mouse.x < 1180.0F) {
+        const int column = std::clamp(static_cast<int>((mouse.x - 70.0F) / 370.0F), 0, 2);
+        const int row = static_cast<int>((mouse.y - gearY) / 70.0F);
+        const int index = row * 3 + column;
+        if (index >= 0 && index < static_cast<int>(app.inventory.gear.size())) {
+          app.selectedGear = index;
+          clampInventoryScroll(app);
+        }
+      }
+    }
     if (!app.inventory.gear.empty() && IsKeyPressed(KEY_U)) {
       auto& piece = app.inventory.gear[static_cast<std::size_t>(app.selectedGear)];
-      setNotice(app, ed::upgradeGear(app.game, piece) ? "Gear upgraded." : "Upgrade unavailable.");
+      if (ed::upgradeGear(app.game, piece)) {
+        setNotice(app, "Gear upgraded.");
+      } else {
+        const int cost = ed::upgradeGoldCost(piece);
+        setNotice(app, cost == 0 ? "This gear is already at maximum level."
+                                 : "Need " + std::to_string(cost) + " gold and " +
+                                       std::to_string(piece.upgradeLevel + 1) + " Arcane Dust.");
+      }
     }
     if (!app.inventory.gear.empty() && IsKeyPressed(KEY_E)) {
       auto& piece = app.inventory.gear[static_cast<std::size_t>(app.selectedGear)];
@@ -820,41 +1025,94 @@ void handleInput(AppState& app) {
     const auto& recipe = app.recipes[static_cast<std::size_t>(app.selectedRecipe)];
     if (IsKeyPressed(KEY_S)) {
       const int tier = std::clamp(recipe.tier, 1, 10);
-      setNotice(app, ed::smeltOre(app.inventory, materialIdForTier(tier), 1)
-                          ? "Smelted 4 ore into 1 ingot."
-                          : "Need 4 matching ore.");
+      const int recipeLayer = std::clamp(tier - 1, 0, static_cast<int>(app.layers.size()) - 1);
+      if (!ed::canUnlockLayer(app.game, app.layers[static_cast<std::size_t>(recipeLayer)])) {
+        setNotice(app, layerLockReason(app.game, app.layers[static_cast<std::size_t>(recipeLayer)]));
+      } else {
+        setNotice(app, ed::smeltOre(app.inventory, materialIdForTier(tier), 1)
+                            ? "Smelted 4 ore into 1 ingot."
+                            : "Need 4 matching ore.");
+      }
     }
     if (IsKeyPressed(KEY_ENTER)) {
-      setNotice(app, ed::craftGear(app.game, app.inventory, recipe)
-                          ? "Gear crafted. Check Inventory."
-                          : "Crafting requirements not met.");
+      if (ed::craftGear(app.game, app.inventory, recipe)) {
+        setNotice(app, "Gear crafted. Check Inventory.");
+      } else {
+        setNotice(app, craftFailureReason(app, recipe));
+      }
     }
   } else if (app.screen == Screen::Campaign) {
     if (IsKeyPressed(KEY_A)) {
-      app.selectedBoss = std::max(0, app.selectedBoss - 1);
-      app.campaignScore = 0;
-      app.campaignAttempt = false;
+      const int nextBoss = std::max(0, app.selectedBoss - 1);
+      if (nextBoss != app.selectedBoss &&
+          !ed::isBossUnlocked(app.game, app.campaign, app.bosses,
+                              static_cast<std::size_t>(nextBoss))) {
+        setNotice(app, "That boss is locked. Clear the previous boss and meet its level requirement.");
+      } else {
+        app.selectedBoss = nextBoss;
+        app.campaignScore = 0;
+        app.campaignAttempt = false;
+      }
     }
     if (IsKeyPressed(KEY_D)) {
-      app.selectedBoss = std::min(static_cast<int>(app.bosses.size()) - 1, app.selectedBoss + 1);
-      app.campaignScore = 0;
-      app.campaignAttempt = false;
+      const int nextBoss = std::min(static_cast<int>(app.bosses.size()) - 1, app.selectedBoss + 1);
+      if (!ed::isBossUnlocked(app.game, app.campaign, app.bosses,
+                              static_cast<std::size_t>(nextBoss))) {
+        const auto& boss = app.bosses[static_cast<std::size_t>(nextBoss)];
+        setNotice(app, "That boss is locked. Reach level " + std::to_string(boss.minLevel) +
+                           " and clear the previous boss.");
+      } else {
+        app.selectedBoss = nextBoss;
+        app.campaignScore = 0;
+        app.campaignAttempt = false;
+      }
     }
     if (IsKeyPressed(KEY_ENTER)) {
-      app.campaignAttempt = true;
-      app.campaignScore = 0;
-      app.campaignHeartsLost = 0;
+      const auto bossIndex = static_cast<std::size_t>(app.selectedBoss);
+      if (!ed::isBossUnlocked(app.game, app.campaign, app.bosses, bossIndex)) {
+        const auto& boss = app.bosses[bossIndex];
+        if (app.game.player.level < boss.minLevel) {
+          setNotice(app, "Boss locked. Reach level " + std::to_string(boss.minLevel) + ".");
+        } else if (app.selectedBoss > 0 &&
+                   !app.campaign.cleared[static_cast<std::size_t>(app.selectedBoss - 1)]) {
+          setNotice(app, "Boss locked. Clear the previous boss first.");
+        } else {
+          setNotice(app, "Boss locked. Meet its requirements first.");
+        }
+      } else {
+        app.campaignAttempt = true;
+        app.campaignScore = 0;
+        app.campaignHeartsLost = 0;
+      }
     }
     if (app.campaignAttempt && (IsKeyPressed(KEY_SPACE) || IsMouseButtonPressed(MOUSE_BUTTON_LEFT))) {
       ++app.campaignScore;
     }
     if (IsKeyPressed(KEY_BACKSPACE) && app.campaignAttempt) attemptCampaign(app);
   } else if (app.screen == Screen::Dungeon) {
-    if (IsKeyPressed(KEY_A)) app.selectedZone = std::max(0, app.selectedZone - 1);
-    if (IsKeyPressed(KEY_D)) {
-      app.selectedZone = std::min(static_cast<int>(app.zones.size()) - 1, app.selectedZone + 1);
+    if (IsKeyPressed(KEY_A)) {
+      const int nextZone = std::max(0, app.selectedZone - 1);
+      if (nextZone != app.selectedZone && !dungeonUnlocked(app, nextZone)) {
+        setNotice(app, dungeonLockReason(app, nextZone));
+      } else {
+        app.selectedZone = nextZone;
+      }
     }
-    if (IsKeyPressed(KEY_ENTER)) runDungeon(app);
+    if (IsKeyPressed(KEY_D)) {
+      const int nextZone = std::min(static_cast<int>(app.zones.size()) - 1, app.selectedZone + 1);
+      if (!dungeonUnlocked(app, nextZone)) {
+        setNotice(app, dungeonLockReason(app, nextZone));
+      } else {
+        app.selectedZone = nextZone;
+      }
+    }
+    if (IsKeyPressed(KEY_ENTER)) {
+      if (!dungeonUnlocked(app, app.selectedZone)) {
+        setNotice(app, dungeonLockReason(app, app.selectedZone));
+      } else {
+        runDungeon(app);
+      }
+    }
   }
 }
 
@@ -874,11 +1132,13 @@ int main() {
   loadSave(app);
   loadCloudSave(app);
   for (std::size_t i = 0; i < app.layers.size(); ++i) {
-    if (app.layers[i].id == app.game.player.currentLayer) {
+    if (app.layers[i].id == app.game.player.currentLayer &&
+        ed::canUnlockLayer(app.game, app.layers[i])) {
       app.layerIndex = static_cast<int>(i);
       break;
     }
   }
+  app.game.player.currentLayer = app.layers[static_cast<std::size_t>(app.layerIndex)].id;
   spawnBlock(app);
   startSaveWorker(app);
 
