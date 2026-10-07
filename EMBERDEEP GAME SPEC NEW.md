@@ -446,10 +446,10 @@ Each boss is a **short skill mini-game** (30–90 s) on a canvas. Think Undertal
 - **Controls:** tap/click only (mouse-friendly), optional keyboard number keys not required.
 
 #### 8. Ignathia, the Ember Wyrm — *Wyrmbone Caverns*
-- **Look:** a long serpentine path body in red, bone-white spike triangles, a wedge head with glowing orange eye.
-- **Challenge: Wyrmfire Run (lane dodge + burst).** **45 s**, 3 lanes, auto-scroll. Dodge fire waves by moving left/right; pick up embers for a score bonus. Every 15 s, a **Scale Break** phase: mash **25 taps in 3 s** to shatter a shield, or take a hit.
-- **Rules:** waves hit = −1 heart. Clear = reach the end. 3★: ≤ 1 heart lost and ≥ 20 embers.
-- **Controls:** ←/→ keys (or A/D), swipe, or tap left/right half.
+- **Look:** a large ember-red serpentine body with bone-white spikes, a wedge head, and three layered scale plates; a glowing heart and lance share a vertical rail.
+- **Challenge:** **Heartpierce.** Hold Space or the mouse button to raise the lance and release to fall, tracking Ignathia's moving heart across three phases.
+- **Rules:** overlap fills the phase gauge; separation drains it. An empty gauge costs a heart and grants one second of invulnerability. Phase 3 adds telegraphed heart darts. Clear all three phases. 3★: no hearts lost and at least 70% overlap time.
+- **Controls:** hold Space or the left mouse button to rise; release to fall. Escape pauses.
 
 #### 9. Xar'Mal, the Lich Emperor — *Voidglass Sanctum*
 - **Look:** tall dark polygon robe, a skull made from circles and triangles, floating crown shards, violet fire.

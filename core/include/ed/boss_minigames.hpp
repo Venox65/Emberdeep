@@ -38,10 +38,13 @@ struct CinderDanceState {
   std::size_t nextNote = 0;
   bool finished = false;
   bool failed = false;
+  bool gauntletMode = false;
+  float duration = 75.0F;
   std::vector<CinderNote> chart;
 };
 
-CinderDanceState startCinderDance(std::uint64_t seed = 0xC1DEULL);
+CinderDanceState startCinderDance(std::uint64_t seed = 0xC1DEULL,
+                                  float duration = 75.0F);
 void updateCinderDance(CinderDanceState& state, float deltaSeconds);
 int judgeCinderDance(CinderDanceState& state, int lane, double focus);
 int cinderDanceScore(const CinderDanceState& state, int attack);
@@ -88,6 +91,7 @@ int headHuntScore(const HeadHuntState& state, int attack);
 
 struct ParryDuelState {
   int attack = 0;
+  int maxAttacks = 24;
   int successfulParries = 0;
   int heartsLost = 0;
   int direction = 0;
@@ -98,7 +102,8 @@ struct ParryDuelState {
   bool cleared = false;
 };
 
-ParryDuelState startParryDuel(std::uint64_t seed = 0xA1D1CULL);
+ParryDuelState startParryDuel(std::uint64_t seed = 0xA1D1CULL,
+                              int maxAttacks = 24);
 void updateParryDuel(ParryDuelState& state, float deltaSeconds, Pcg32& rng);
 bool parryDuelInput(ParryDuelState& state, int direction);
 int parryDuelScore(const ParryDuelState& state, int attack);
@@ -139,31 +144,101 @@ void updateStarTrace(StarTraceState& state, float deltaSeconds, Pcg32& rng);
 bool hitStarTrace(StarTraceState& state, int star);
 int starTraceScore(const StarTraceState& state, int speed);
 
-struct WyrmfireRunState {
-  float elapsed = 0.0F;
-  int lane = 1;
+struct HeartpierceState {
+  float totalTime = 0.0F;
+  float overlapTime = 0.0F;
+  float lanceY = 0.5F;
+  float lanceV = 0.0F;
+  float heartY = 0.5F;
+  float waypointY = 0.5F;
+  float retargetTimer = 2.4F;
+  float gauge = 0.25F;
+  float invulnerable = 0.0F;
+  float dartTimer = 5.0F;
+  float dartTelegraph = 0.0F;
+  float dartTarget = 0.5F;
+  float focus = 0.0F;
+  float echoModifier = 1.0F;
+  int phase = 0;
+  int hearts = 3;
   int heartsLost = 0;
-  int embers = 0;
-  int burstTaps = 0;
-  int hazardLane = 1;
-  float hazardY = 0.0F;
-  bool hazardActive = true;
-  float hazardRespawn = 0.0F;
-  int emberLane = 0;
-  float emberY = 0.0F;
-  bool emberActive = true;
-  float emberRespawn = 0.0F;
-  float nextScaleBreak = 15.0F;
-  bool scaleBreak = false;
-  float scaleElapsed = 0.0F;
+  std::uint32_t patternState = 0;
   bool finished = false;
   bool cleared = false;
 };
 
-WyrmfireRunState startWyrmfireRun();
-void updateWyrmfireRun(WyrmfireRunState& state, float deltaSeconds);
-void moveWyrmfireRun(WyrmfireRunState& state, int direction);
-void tapWyrmfireRun(WyrmfireRunState& state);
-int wyrmfireRunScore(const WyrmfireRunState& state, int speed);
+HeartpierceState startHeartpierce(std::uint64_t seed = 0x1A671ULL,
+                                  float focus = 0.0F, int ward = 0,
+                                  int echoRank = 1);
+void updateHeartpierce(HeartpierceState& state, float deltaSeconds, bool rising);
+int heartpierceScore(const HeartpierceState& state);
+
+enum class SoulHazardKind { Spiral, Rain, Laser, Ring };
+
+struct SoulHazard {
+  SoulHazardKind kind = SoulHazardKind::Spiral;
+  float x = 0.5F;
+  float y = 0.5F;
+  float angle = 0.0F;
+  float radius = 0.0F;
+  float lifetime = 0.0F;
+  float telegraph = 0.0F;
+  bool active = true;
+};
+
+struct SoulDodgeState {
+  float elapsed = 0.0F;
+  float duration = 60.0F;
+  float playerX = 0.5F;
+  float playerY = 0.5F;
+  int hearts = 3;
+  int hits = 0;
+  float invulnerable = 0.0F;
+  float patternTimer = 0.0F;
+  std::uint32_t patternState = 0;
+  std::vector<SoulHazard> hazards;
+  bool slowMove = false;
+  bool finished = false;
+  bool cleared = false;
+};
+
+SoulDodgeState startSoulDodge(std::uint64_t seed = 0x50UL, int ward = 0,
+                              float duration = 60.0F);
+void updateSoulDodge(SoulDodgeState& state, float deltaSeconds,
+                     float moveX, float moveY, bool slowMove, int speed);
+int soulDodgeScore(const SoulDodgeState& state);
+
+struct CrownStrikeState {
+  int strike = 0;
+  int hits = 0;
+  int misses = 0;
+  float needle = 0.0F;
+  float direction = 1.0F;
+  bool finished = false;
+  bool cleared = false;
+};
+
+CrownStrikeState startCrownStrike();
+void updateCrownStrike(CrownStrikeState& state, float deltaSeconds);
+bool strikeCrown(CrownStrikeState& state, float focus);
+int crownStrikeScore(const CrownStrikeState& state);
+
+struct FiveTrialsState {
+  int phase = 1;
+  float phaseElapsed = 0.0F;
+  float burstElapsed = 0.0F;
+  int burstTaps = 0;
+  int hearts = 3;
+  int maxHearts = 3;
+  int heartsLost = 0;
+  bool restoredBetweenPhases = false;
+  bool finished = false;
+  bool cleared = false;
+};
+
+FiveTrialsState startFiveTrials(int ward = 0);
+bool advanceFiveTrials(FiveTrialsState& state, bool phaseCleared,
+                       int phaseHeartsLost);
+int fiveTrialsScore(const FiveTrialsState& state);
 
 } // namespace ed

@@ -109,7 +109,10 @@ struct AppState {
   ed::ParryDuelState parryDuel;
   ed::RuneRecallState runeRecall;
   ed::StarTraceState starTrace;
-  ed::WyrmfireRunState wyrmfireRun;
+  ed::HeartpierceState heartpierce;
+  ed::SoulDodgeState soulDodge;
+  ed::CrownStrikeState crownStrike;
+  ed::FiveTrialsState fiveTrials;
   float blockPulse = 0.0F;
   float shake = 0.0F;
   std::string notice = "Click the block to mine.";
@@ -618,9 +621,22 @@ void startCampaignAttempt(AppState& app) {
     app.starTrace = ed::startStarTrace(
         0x57A2ULL + static_cast<std::uint64_t>(app.game.player.clicks));
     setNotice(app, "Star Trace! Tap the numbered stars in order.");
+  } else if (challenge == ed::BossChallenge::Heartpierce) {
+    const auto stats = ed::calculatePlayerStats(app.game, app.inventory);
+    app.heartpierce = ed::startHeartpierce(
+        0x1A671ULL + static_cast<std::uint64_t>(app.game.player.clicks),
+        static_cast<float>(stats.focusBasisPoints) / 10000.0F, 0,
+        app.game.player.echoRank);
+    setNotice(app, "Heartpierce! Hold Space or mouse to raise the lance and track Ignathia's heart.");
+  } else if (challenge == ed::BossChallenge::SoulDodge) {
+    app.soulDodge = ed::startSoulDodge(
+        0x50ULL + static_cast<std::uint64_t>(app.game.player.clicks));
+    setNotice(app, "Soul Dodge! Survive the pattern waves.");
   } else {
-    app.wyrmfireRun = ed::startWyrmfireRun();
-    setNotice(app, "Wyrmfire Run! Dodge waves and break the scales.");
+    app.fiveTrials = ed::startFiveTrials();
+    app.cinderDance = ed::startCinderDance(0xF17EULL, 30.0F);
+    app.cinderDance.gauntletMode = true;
+    setNotice(app, "The Five Trials begin. Complete every phase.");
   }
 }
 
@@ -796,7 +812,11 @@ void drawCampaignScreen(const AppState& app) {
                                                                ? "ISOLDE'S RUNE RECALL"
                                                                : boss.challenge == ed::BossChallenge::StarTrace
                                                                      ? "SERAPHEL'S STAR TRACE"
-                                                                     : "IGNATHIA'S WYRMFIRE RUN",
+                                                                           : boss.challenge == ed::BossChallenge::Heartpierce
+                                                                                 ? "IGNATHIA'S HEARTPIERCE"
+                                                                                 : boss.challenge == ed::BossChallenge::SoulDodge
+                                                                                       ? "XAR'MAL'S SOUL DODGE"
+                                                                                       : "THE HOLLOW KING'S FIVE TRIALS",
                              305, 24, Color{199, 199, 218, 255});
     drawTextCentered(boss.challenge == ed::BossChallenge::FrenzyDig
                              ? "Mine the golden throne before the frenzy ends."
@@ -812,7 +832,11 @@ void drawCampaignScreen(const AppState& app) {
                                                            ? "Memorize each rune sequence, then repeat it."
                                                            : boss.challenge == ed::BossChallenge::StarTrace
                                                                  ? "Touch the numbered stars in order."
-                                                                 : "Dodge fire waves and break scale shields.",
+                                                                 : boss.challenge == ed::BossChallenge::Heartpierce
+                                                                       ? "Track the heart with the lance."
+                                                                       : boss.challenge == ed::BossChallenge::SoulDodge
+                                                                             ? "Survive the deterministic bullet patterns."
+                                                                             : "Complete all five trials with shared hearts.",
                          375, 20, Color{227, 222, 205, 255});
     drawTextCentered("Press ENTER when ready", 470, 22, Color{122, 217, 255, 255});
     return;
@@ -981,51 +1005,130 @@ void drawCampaignScreen(const AppState& app) {
     }
     DrawText("Tap the highlighted stars in order. Wrong stars cost a heart.", 375, 575, 18,
              Color{255, 224, 145, 255});
-  } else if (boss.challenge == ed::BossChallenge::WyrmfireRun) {
-    DrawText(("Time: " + std::to_string(static_cast<int>(45.0F - app.wyrmfireRun.elapsed)) +
-              "s   Lane: " + std::to_string(app.wyrmfireRun.lane + 1) +
-              "   Embers: " + std::to_string(app.wyrmfireRun.embers) +
-              "   Hearts lost: " + std::to_string(app.wyrmfireRun.heartsLost))
+  } else if (boss.challenge == ed::BossChallenge::Heartpierce) {
+    const char* phaseNames[] = {"Cold Scales", "Ember Heat", "Wyrmfire Fury"};
+    DrawText(("Phase " + std::to_string(app.heartpierce.phase + 1) + ": " +
+              phaseNames[app.heartpierce.phase] + "   Hearts: " +
+              std::to_string(app.heartpierce.hearts) + "   Overlap: " +
+              std::to_string(static_cast<int>(app.heartpierce.gauge * 100.0F)) + "%")
                  .c_str(),
              350, 255, 21, RAYWHITE);
-    for (int lane = 0; lane < 3; ++lane) {
-      const int x = 420 + lane * 150;
-      DrawRectangle(x, 300, 110, 270, lane == app.wyrmfireRun.lane
-                                             ? Color{73, 84, 111, 255}
-                                             : Color{38, 34, 53, 255});
-      DrawText(std::to_string(lane + 1).c_str(), x + 48, 535, 20, Color{255, 224, 145, 255});
+    DrawText(("Time: " + std::to_string(static_cast<int>(app.heartpierce.totalTime)) +
+              "s   Hearts lost: " + std::to_string(app.heartpierce.heartsLost) +
+              "   Heartpierce: " +
+              std::to_string(static_cast<int>(app.heartpierce.gauge * 100.0F)) + "%")
+                 .c_str(), 350, 285, 18, Color{255, 224, 145, 255});
+    DrawRectangle(365, 325, 290, 220, Color{45, 34, 43, 255});
+    DrawCircle(510, 420, 78, Color{113, 39, 39, 255});
+    DrawCircle(510, 420, 58, Color{238, 80, 42, 255});
+    DrawCircle(535, 397, 13, Color{255, 220, 106, 255});
+    DrawCircleLines(510, 420, 92, Color{230, 220, 190, 255});
+    DrawRectangle(800, 275, 80, 300, Color{30, 33, 43, 255});
+    DrawRectangle(822, 295, 36, 260, Color{64, 67, 80, 255});
+    const int heartY = 555 - static_cast<int>(app.heartpierce.heartY * 240.0F);
+    const int lanceY = 555 - static_cast<int>(app.heartpierce.lanceY * 240.0F);
+    const float zonePixels = (0.09F + 0.04F * (2 - app.heartpierce.phase)) *
+                             (1.0F + app.heartpierce.focus) * 240.0F;
+    DrawRectangle(805, heartY - static_cast<int>(zonePixels),
+                  70, static_cast<int>(zonePixels * 2.0F),
+                  Color{255, 80, 48, 55});
+    DrawCircle(840, heartY, 17, app.heartpierce.dartTelegraph > 0.0F
+                                  ? Color{255, 255, 255, 255}
+                                  : Color{255, 85, 45, 255});
+    DrawRectangle(813, lanceY - 12, 54, 24, Color{118, 205, 210, 255});
+    DrawTriangle({840, static_cast<float>(lanceY - 32)},
+                 {825, static_cast<float>(lanceY - 10)},
+                 {855, static_cast<float>(lanceY - 10)}, Color{211, 235, 229, 255});
+    DrawRectangle(680, 350, 18, 200, Color{45, 35, 38, 255});
+    DrawRectangle(680, 550 - static_cast<int>(app.heartpierce.gauge * 200.0F),
+                  18, static_cast<int>(app.heartpierce.gauge * 200.0F),
+                  Color{255, 194, 55, 255});
+    DrawText("Hold SPACE or mouse button to rise; release to fall.", 350, 600, 18,
+             Color{255, 224, 145, 255});
+  } else if (boss.challenge == ed::BossChallenge::SoulDodge) {
+    DrawText(("Time: " + std::to_string(static_cast<int>(60.0F - app.soulDodge.elapsed)) +
+              "s   Hearts: " + std::to_string(app.soulDodge.hearts) +
+              "   Hits: " + std::to_string(app.soulDodge.hits)).c_str(),
+             390, 255, 21, RAYWHITE);
+    DrawRectangle(300, 285, 680, 300, Color{18, 20, 39, 255});
+    DrawRectangleLines(300, 285, 680, 300, Color{118, 91, 157, 255});
+    for (const auto& hazard : app.soulDodge.hazards) {
+      if (hazard.kind == ed::SoulHazardKind::Laser) {
+        const int x = 300 + static_cast<int>(hazard.x * 680.0F);
+        DrawRectangle(x - 5, 285, 10, 300,
+                      hazard.telegraph > 0.0F ? Color{255, 238, 166, 150}
+                                             : Color{214, 80, 255, 220});
+      } else {
+        const float hazardX = hazard.kind == ed::SoulHazardKind::Rain
+                                  ? hazard.x
+                                  : hazard.x + std::cos(hazard.angle) * hazard.radius;
+        const float hazardY = hazard.kind == ed::SoulHazardKind::Rain
+                                  ? hazard.y
+                                  : hazard.y + std::sin(hazard.angle) * hazard.radius;
+        const int x = 300 + static_cast<int>(hazardX * 680.0F);
+        const int y = 285 + static_cast<int>(hazardY * 300.0F);
+        DrawCircle(x, y, hazard.kind == ed::SoulHazardKind::Ring ? 12 : 8,
+                   hazard.telegraph > 0.0F ? Color{255, 255, 255, 160}
+                                           : Color{178, 75, 232, 230});
+      }
     }
-    if (app.wyrmfireRun.hazardActive) {
-      const int hazardX = 420 + app.wyrmfireRun.hazardLane * 150;
-      const int hazardY = 300 + static_cast<int>(app.wyrmfireRun.hazardY * 230.0F);
-      DrawCircle(hazardX + 55, hazardY, 18, Color{255, 77, 48, 255});
+    DrawCircle(300 + static_cast<int>(app.soulDodge.playerX * 680.0F),
+               285 + static_cast<int>(app.soulDodge.playerY * 300.0F), 7,
+               app.soulDodge.invulnerable > 0.0F ? Color{255, 255, 255, 180}
+                                                 : Color{255, 88, 132, 255});
+    DrawText("Move with WASD/arrows. Hold Shift for precision movement.", 365, 615, 18,
+             Color{255, 224, 145, 255});
+  } else if (boss.challenge == ed::BossChallenge::FiveTrials) {
+    DrawText(("TRIAL " + std::to_string(app.fiveTrials.phase) +
+              " / 5   Hearts: " + std::to_string(app.fiveTrials.hearts) +
+              "   Lost: " + std::to_string(app.fiveTrials.heartsLost)).c_str(),
+             420, 255, 21, RAYWHITE);
+    DrawRectangle(350, 320, 580, 180, Color{32, 35, 53, 255});
+    if (app.fiveTrials.phase == 1) {
+      DrawText(("BURST: " + std::to_string(std::max(0, 6 - static_cast<int>(app.fiveTrials.burstElapsed))) +
+                " seconds remaining").c_str(), 440, 390, 24, RAYWHITE);
+      DrawText(("Taps: " + std::to_string(app.fiveTrials.burstTaps) +
+                " / 48").c_str(), 540, 440, 22, Color{255, 224, 145, 255});
+    } else if (app.fiveTrials.phase == 2) {
+      DrawText(("RHYTHM: D F J K   " +
+                std::to_string(std::max(0, 30 - static_cast<int>(app.fiveTrials.phaseElapsed))) +
+                " seconds").c_str(), 420, 300, 24, RAYWHITE);
+      const char* laneKeys[] = {"D", "F", "J", "K"};
+      for (int lane = 0; lane < 4; ++lane) {
+        const int laneX = 390 + lane * 120;
+        DrawRectangle(laneX, 330, 116, 160,
+                      lane % 2 == 0 ? Color{37, 43, 66, 255}
+                                    : Color{31, 37, 58, 255});
+        DrawRectangleLines(laneX, 330, 116, 160, Color{93, 107, 145, 255});
+        DrawRectangle(laneX + 5, 450, 106, 35, Color{71, 103, 132, 255});
+        DrawRectangleLinesEx({static_cast<float>(laneX + 5), 450, 106, 35},
+                             2.0F, Color{255, 224, 145, 255});
+        DrawText(laneKeys[lane], laneX + 51, 456, 22, Color{255, 238, 180, 255});
+      }
+      const auto& chart = app.cinderDance.chart;
+      for (std::size_t index = app.cinderDance.nextNote;
+           index < chart.size() && index < app.cinderDance.nextNote + 8; ++index) {
+        const int x = 450 + chart[index].lane * 120;
+        const int y = 470 - static_cast<int>((chart[index].time -
+                                               app.cinderDance.elapsed) * 55.0F);
+        if (y >= 330 && y <= 440) {
+          DrawCircle(x, y, 17, Color{255, 168, 76, 255});
+          DrawCircleLines(x, y, 20, Color{255, 238, 180, 255});
+        }
+      }
+      DrawText("Hit when the note reaches the outlined receptor.", 445, 510, 17,
+               Color{255, 224, 145, 255});
+    } else if (app.fiveTrials.phase == 3) {
+      DrawText("PARRY: match LEFT / DOWN / RIGHT", 410, 405, 22, RAYWHITE);
+    } else if (app.fiveTrials.phase == 4) {
+      DrawText("SOUL DODGE: survive the remix", 455, 405, 22, RAYWHITE);
+    } else {
+      DrawText("CROWN STRIKE: press SPACE in the center zone", 395, 405, 21, RAYWHITE);
+      DrawRectangle(450, 455, 380, 16, Color{57, 55, 70, 255});
+      DrawRectangle(635, 451, 10, 24, Color{92, 208, 117, 255});
+      DrawRectangle(450 + static_cast<int>(380 * app.crownStrike.needle) - 5,
+                    440, 10, 45, RAYWHITE);
     }
-    if (app.wyrmfireRun.emberActive) {
-      const int emberX = 420 + app.wyrmfireRun.emberLane * 150;
-      const int emberY = 300 + static_cast<int>(app.wyrmfireRun.emberY * 230.0F);
-      DrawCircle(emberX + 55, emberY, 12, Color{255, 224, 72, 255});
-    }
-    DrawRectangle(535 + app.wyrmfireRun.lane * 150, 450, 35, 35,
-                  Color{255, 112, 58, 255});
-    const int flameLane =
-        static_cast<int>(app.wyrmfireRun.elapsed * 1.7F) % 3;
-    const int flameY =
-        520 - static_cast<int>(std::fmod(app.wyrmfireRun.elapsed * 130.0F, 190.0F));
-    DrawCircle(475 + flameLane * 150, flameY, 18, Color{255, 92, 44, 255});
-    DrawCircle(475 + flameLane * 150, flameY + 12, 9, Color{255, 196, 62, 255});
-    if (app.wyrmfireRun.scaleBreak) {
-      DrawRectangle(400, 275, 480, 12, Color{63, 43, 48, 255});
-      DrawRectangle(400, 275,
-                    static_cast<int>(480.0F *
-                                     std::clamp(app.wyrmfireRun.burstTaps / 25.0F,
-                                                0.0F, 1.0F)),
-                    12, Color{255, 112, 58, 255});
-    }
-    DrawText(app.wyrmfireRun.scaleBreak
-                 ? "SCALE BREAK: mash SPACE/click 25 times before the timer ends"
-                 : "Move lanes to avoid fireballs; collisions happen near your flame. Collect embers",
-             300, 600, 17, app.wyrmfireRun.scaleBreak ? Color{255, 139, 102, 255}
-                                                       : Color{255, 224, 145, 255});
   }
 }
 
@@ -1255,6 +1358,76 @@ void updateEffects(AppState& app, float delta) {
         app.campaignScore = ed::frenzyDigScore(app.frenzyDig, stats.attack);
         attemptCampaign(app);
       }
+    } else if (challenge == ed::BossChallenge::SoulDodge) {
+      const float moveX = (IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_D)) -
+                          (IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_A));
+      const float moveY = (IsKeyDown(KEY_DOWN) || IsKeyDown(KEY_S)) -
+                          (IsKeyDown(KEY_UP) || IsKeyDown(KEY_W));
+      ed::updateSoulDodge(app.soulDodge, delta, moveX, moveY,
+                          IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT), 10);
+      if (app.soulDodge.finished) {
+        app.campaignScore = ed::soulDodgeScore(app.soulDodge);
+        app.campaignHeartsLost = app.soulDodge.hits;
+        attemptCampaign(app);
+      }
+    } else if (challenge == ed::BossChallenge::FiveTrials) {
+      if (app.fiveTrials.phase == 1) {
+        app.fiveTrials.burstElapsed += delta;
+        if (app.fiveTrials.burstElapsed >= 6.0F) {
+          const bool passed = app.fiveTrials.burstTaps >= 48;
+          ed::advanceFiveTrials(app.fiveTrials, passed, passed ? 0 : 1);
+          if (app.fiveTrials.phase == 2) {
+            app.cinderDance = ed::startCinderDance(0xF17EULL, 30.0F);
+            app.cinderDance.gauntletMode = true;
+          }
+        }
+      } else if (app.fiveTrials.phase == 2) {
+        app.fiveTrials.phaseElapsed += delta;
+        ed::updateCinderDance(app.cinderDance, delta);
+        if (app.fiveTrials.phaseElapsed >= 30.0F) {
+          app.cinderDance.finished = true;
+          app.cinderDance.failed = app.cinderDance.groove == 0;
+        }
+        if (app.cinderDance.finished) {
+          const bool passed = !app.cinderDance.failed;
+          ed::advanceFiveTrials(app.fiveTrials, passed, passed ? 0 : 1);
+          if (app.fiveTrials.phase == 3) {
+            app.parryDuel = ed::startParryDuel(0xF17EULL, 12);
+          }
+        }
+      } else if (app.fiveTrials.phase == 3) {
+        ed::updateParryDuel(app.parryDuel, delta, app.rng);
+        if (app.parryDuel.finished) {
+          ed::advanceFiveTrials(app.fiveTrials, app.parryDuel.cleared,
+                                app.parryDuel.heartsLost);
+          if (app.fiveTrials.phase == 4) {
+            app.soulDodge = ed::startSoulDodge(0xF17EULL, 0, 40.0F);
+          }
+        }
+      } else if (app.fiveTrials.phase == 4) {
+        const float moveX = (IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_D)) -
+                            (IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_A));
+        const float moveY = (IsKeyDown(KEY_DOWN) || IsKeyDown(KEY_S)) -
+                            (IsKeyDown(KEY_UP) || IsKeyDown(KEY_W));
+        ed::updateSoulDodge(app.soulDodge, delta, moveX, moveY,
+                            IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT), 10);
+        if (app.soulDodge.finished) {
+          ed::advanceFiveTrials(app.fiveTrials, app.soulDodge.cleared,
+                                app.soulDodge.hits);
+          if (app.fiveTrials.phase == 5) app.crownStrike = ed::startCrownStrike();
+        }
+      } else {
+        ed::updateCrownStrike(app.crownStrike, delta);
+        if (app.crownStrike.finished) {
+          ed::advanceFiveTrials(app.fiveTrials, app.crownStrike.cleared,
+                                app.crownStrike.misses);
+        }
+      }
+      if (app.fiveTrials.finished) {
+        app.campaignScore = ed::fiveTrialsScore(app.fiveTrials);
+        app.campaignHeartsLost = app.fiveTrials.heartsLost;
+        attemptCampaign(app);
+      }
     } else if (challenge == ed::BossChallenge::StarTrace) {
       ed::updateStarTrace(app.starTrace, delta, app.rng);
       if (app.starTrace.finished) {
@@ -1263,12 +1436,12 @@ void updateEffects(AppState& app, float delta) {
         app.campaignHeartsLost = app.starTrace.heartsLost;
         attemptCampaign(app);
       }
-    } else if (challenge == ed::BossChallenge::WyrmfireRun) {
-      ed::updateWyrmfireRun(app.wyrmfireRun, delta);
-      if (app.wyrmfireRun.finished) {
-        const auto stats = ed::calculatePlayerStats(app.game, app.inventory);
-        app.campaignScore = ed::wyrmfireRunScore(app.wyrmfireRun, stats.speed);
-        app.campaignHeartsLost = app.wyrmfireRun.heartsLost;
+    } else if (challenge == ed::BossChallenge::Heartpierce) {
+      ed::updateHeartpierce(app.heartpierce, delta,
+                            IsKeyDown(KEY_SPACE) || IsMouseButtonDown(MOUSE_BUTTON_LEFT));
+      if (app.heartpierce.finished) {
+        app.campaignScore = ed::heartpierceScore(app.heartpierce);
+        app.campaignHeartsLost = app.heartpierce.heartsLost;
         attemptCampaign(app);
       }
     } else if (challenge == ed::BossChallenge::BoneDuel) {
@@ -1454,11 +1627,46 @@ bool handleActiveCampaignInput(AppState& app) {
     }
     return true;
   }
-  if (challenge == ed::BossChallenge::WyrmfireRun) {
-    if (IsKeyPressed(KEY_LEFT) || IsKeyPressed(KEY_A)) ed::moveWyrmfireRun(app.wyrmfireRun, -1);
-    if (IsKeyPressed(KEY_RIGHT) || IsKeyPressed(KEY_D)) ed::moveWyrmfireRun(app.wyrmfireRun, 1);
-    if (IsKeyPressed(KEY_SPACE) || IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-      ed::tapWyrmfireRun(app.wyrmfireRun);
+  if (challenge == ed::BossChallenge::Heartpierce) {
+    return true;
+  }
+  if (challenge == ed::BossChallenge::SoulDodge) {
+    return true;
+  }
+  if (challenge == ed::BossChallenge::FiveTrials) {
+    if (app.fiveTrials.phase == 1 &&
+        (IsKeyPressed(KEY_SPACE) || IsMouseButtonPressed(MOUSE_BUTTON_LEFT))) {
+      ++app.fiveTrials.burstTaps;
+    } else if (app.fiveTrials.phase == 2) {
+      const auto stats = ed::calculatePlayerStats(app.game, app.inventory);
+      const int keys[] = {KEY_D, KEY_F, KEY_J, KEY_K};
+      for (int lane = 0; lane < 4; ++lane) {
+        if (IsKeyPressed(keys[lane])) {
+          ed::judgeCinderDance(app.cinderDance, lane,
+                               static_cast<double>(stats.focusBasisPoints) / 10000.0);
+        }
+      }
+      if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+        const Vector2 mouse = GetMousePosition();
+        if (mouse.y >= 440.0F && mouse.y <= 500.0F &&
+            mouse.x >= 390.0F && mouse.x < 870.0F) {
+          const int lane = static_cast<int>((mouse.x - 390.0F) / 120.0F);
+          if (lane >= 0 && lane < 4) {
+            ed::judgeCinderDance(
+                app.cinderDance, lane,
+                static_cast<double>(stats.focusBasisPoints) / 10000.0);
+          }
+        }
+      }
+    } else if (app.fiveTrials.phase == 3) {
+      int direction = -1;
+      if (IsKeyPressed(KEY_LEFT)) direction = 0;
+      if (IsKeyPressed(KEY_DOWN)) direction = 1;
+      if (IsKeyPressed(KEY_RIGHT)) direction = 2;
+      if (direction >= 0) ed::parryDuelInput(app.parryDuel, direction);
+    } else if (app.fiveTrials.phase == 5 &&
+               (IsKeyPressed(KEY_SPACE) || IsMouseButtonPressed(MOUSE_BUTTON_LEFT))) {
+      ed::strikeCrown(app.crownStrike, 0.0F);
     }
     return true;
   }

@@ -57,11 +57,11 @@ std::vector<BossDef> defaultBosses() {
       makeBoss("seraphel", "Seraphel, the Fallen Star", "stargazer-spire",
                BossChallenge::StarTrace, 34, 8, 10, 12, "starfall-treads"),
       makeBoss("ignathia", "Ignathia, the Ember Wyrm", "wyrmbone-caverns",
-               BossChallenge::WyrmfireRun, 42, 1, 15, 20, "wyrmfang-breaker"),
+               BossChallenge::Heartpierce, 42, 50, 70, 85, "wyrmfang-breaker"),
       makeBoss("xarmal", "Xar'Mal, the Lich Emperor", "voidglass-sanctum",
-               BossChallenge::SoulDodge, 50, 1, 1, 1, "voidglass-phylactery"),
+               BossChallenge::SoulDodge, 50, 80, 90, 100, "voidglass-phylactery"),
       makeBoss("hollow-king", "The Hollow King", "aether-vault",
-               BossChallenge::FiveTrials, 60, 1, 1, 1, "aetherbrand"),
+               BossChallenge::FiveTrials, 60, 1, 2, 3, "aetherbrand"),
   };
 }
 

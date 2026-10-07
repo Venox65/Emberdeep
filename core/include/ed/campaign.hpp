@@ -15,7 +15,7 @@ enum class BossChallenge {
   ParryDuel,
   RuneRecall,
   StarTrace,
-  WyrmfireRun,
+  Heartpierce,
   SoulDodge,
   FiveTrials,
 };

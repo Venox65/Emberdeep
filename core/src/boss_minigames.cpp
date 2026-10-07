@@ -9,9 +9,7 @@ namespace {
 
 constexpr float kFrenzyDuration = 10.0F;
 constexpr int kBoneRounds = 8;
-constexpr float kCinderDuration = 75.0F;
 constexpr float kHeadHuntDuration = 35.0F;
-constexpr int kParryAttacks = 24;
 constexpr int kRuneRounds = 10;
 
 float focusMultiplier(double focus) {
@@ -89,13 +87,15 @@ int frenzyDigScore(const FrenzyDigState& state, int attack) {
   return static_cast<int>(std::floor(effectiveTaps / kFrenzyDuration));
 }
 
-CinderDanceState startCinderDance(std::uint64_t seed) {
+CinderDanceState startCinderDance(std::uint64_t seed, float duration) {
   Pcg32 rng(seed);
   CinderDanceState state;
+  state.duration = std::max(1.0F, duration);
   state.chart.reserve(110);
   for (int index = 0; index < 110; ++index) {
     CinderNote note;
-    note.time = 2.0F + static_cast<float>(index) * (70.0F / 109.0F);
+    note.time = 2.0F + static_cast<float>(index) *
+                              ((state.duration - 5.0F) / 109.0F);
     note.lane = static_cast<int>(rng.nextRange(0, 3));
     state.chart.push_back(note);
   }
@@ -104,7 +104,7 @@ CinderDanceState startCinderDance(std::uint64_t seed) {
 
 void updateCinderDance(CinderDanceState& state, float deltaSeconds) {
   if (state.finished) return;
-  state.elapsed = std::min(kCinderDuration, state.elapsed + std::max(0.0F, deltaSeconds));
+  state.elapsed = std::min(state.duration, state.elapsed + std::max(0.0F, deltaSeconds));
   while (state.nextNote < state.chart.size() &&
          state.elapsed - state.chart[state.nextNote].time > 0.1F) {
     state.chart[state.nextNote].judged = true;
@@ -112,7 +112,8 @@ void updateCinderDance(CinderDanceState& state, float deltaSeconds) {
     ++state.misses;
     state.groove = std::max(0, state.groove - 6);
   }
-  if (state.groove == 0 || state.elapsed >= kCinderDuration) {
+  if ((!state.gauntletMode && state.groove == 0) ||
+      state.elapsed >= state.duration) {
     state.finished = true;
     state.failed = state.groove == 0;
     while (state.nextNote < state.chart.size()) {
@@ -271,8 +272,9 @@ int headHuntScore(const HeadHuntState& state, int attack) {
   return state.realHits + std::min(5, std::max(0, attack) / 20);
 }
 
-ParryDuelState startParryDuel(std::uint64_t seed) {
+ParryDuelState startParryDuel(std::uint64_t seed, int maxAttacks) {
   ParryDuelState state;
+  state.maxAttacks = std::max(1, maxAttacks);
   Pcg32 rng(seed);
   state.patternState = rng.next();
   state.direction = static_cast<int>(state.patternState % 3U);
@@ -296,9 +298,9 @@ void updateParryDuel(ParryDuelState& state, float deltaSeconds, Pcg32& rng) {
     ++state.heartsLost;
     ++state.attack;
     state.elapsed = 0.0F;
-    if (state.heartsLost >= 3 || state.attack >= kParryAttacks) {
+    if (state.heartsLost >= 3 || state.attack >= state.maxAttacks) {
       state.finished = true;
-      state.cleared = state.attack >= kParryAttacks && state.heartsLost < 3;
+      state.cleared = state.attack >= state.maxAttacks && state.heartsLost < 3;
     } else {
       static_cast<void>(rng);
       advanceParryPattern(state);
@@ -316,9 +318,9 @@ bool parryDuelInput(ParryDuelState& state, int direction) {
   }
   ++state.attack;
   state.elapsed = 0.0F;
-  if (state.heartsLost >= 3 || state.attack >= kParryAttacks) {
+  if (state.heartsLost >= 3 || state.attack >= state.maxAttacks) {
     state.finished = true;
-    state.cleared = state.attack >= kParryAttacks && state.heartsLost < 3;
+    state.cleared = state.attack >= state.maxAttacks && state.heartsLost < 3;
   }
   if (!state.finished) advanceParryPattern(state);
   return valid;
@@ -457,82 +459,272 @@ int starTraceScore(const StarTraceState& state, int speed) {
   return state.constellation + std::min(2, std::max(0, speed) / 40);
 }
 
-WyrmfireRunState startWyrmfireRun() {
-  WyrmfireRunState state;
-  state.hazardLane = 1;
-  state.emberLane = 0;
-  state.hazardY = 0.0F;
-  state.emberY = 0.45F;
+HeartpierceState startHeartpierce(std::uint64_t seed, float focus, int ward,
+                                   int echoRank) {
+  HeartpierceState state;
+  state.patternState = static_cast<std::uint32_t>(seed);
+  state.focus = std::clamp(focus, 0.0F, 0.25F);
+  state.echoModifier = std::min(2.0F, 1.0F + 0.08F *
+                                               static_cast<float>(std::max(0, echoRank - 1)));
+  state.hearts = 3 + std::max(0, ward);
+  state.waypointY = 0.72F;
+  state.heartY = state.waypointY;
   return state;
 }
 
-void updateWyrmfireRun(WyrmfireRunState& state, float deltaSeconds) {
+void updateHeartpierce(HeartpierceState& state, float deltaSeconds, bool rising) {
   if (state.finished) return;
-  const float delta = std::max(0.0F, deltaSeconds);
-  state.elapsed = std::min(45.0F, state.elapsed + delta);
-  if (state.hazardActive) {
-    state.hazardY += delta * 0.24F;
-    if (state.hazardY >= 0.82F) {
-      if (state.hazardLane == state.lane) ++state.heartsLost;
-      state.hazardActive = false;
-      state.hazardRespawn = 1.5F;
+  const float delta = std::min(0.1F, std::max(0.0F, deltaSeconds));
+  state.totalTime += delta;
+  state.invulnerable = std::max(0.0F, state.invulnerable - delta);
+
+  const float thrust = 2.4F;
+  const float gravity = 1.6F;
+  const float maxVelocity = 1.2F;
+  state.lanceV += (rising ? thrust : -gravity) * delta;
+  state.lanceV = std::clamp(state.lanceV, -maxVelocity, maxVelocity);
+  state.lanceY += state.lanceV * delta;
+  if (state.lanceY < 0.0F || state.lanceY > 1.0F) {
+    state.lanceY = std::clamp(state.lanceY, 0.0F, 1.0F);
+    state.lanceV = -state.lanceV * 0.3F;
+  }
+
+  const float speed[] = {0.28F, 0.40F, 0.56F};
+  const float retargetMin[] = {2.0F, 1.6F, 1.2F};
+  const float retargetMax[] = {3.0F, 2.6F, 2.0F};
+  const float zone[] = {0.13F, 0.11F, 0.09F};
+  const float gain[] = {0.25F, 0.22F, 0.20F};
+  const float drain[] = {0.12F, 0.14F, 0.16F};
+  const int phase = std::clamp(state.phase, 0, 2);
+  state.retargetTimer -= delta;
+  if (state.retargetTimer <= 0.0F) {
+    state.patternState = state.patternState * 1664525U + 1013904223U;
+    float candidate = 0.1F + 0.8F *
+        (static_cast<float>(state.patternState) / 4294967295.0F);
+    if (std::abs(candidate - state.waypointY) < 0.2F) candidate = state.waypointY < 0.5F ? 0.9F : 0.1F;
+    state.waypointY = candidate;
+    state.patternState = state.patternState * 1664525U + 1013904223U;
+    const float randomUnit = static_cast<float>(state.patternState) / 4294967295.0F;
+    state.retargetTimer = retargetMin[phase] +
+                          (retargetMax[phase] - retargetMin[phase]) * randomUnit /
+                              state.echoModifier;
+  }
+  if (phase == 2) {
+    state.dartTimer -= delta;
+    if (state.dartTelegraph > 0.0F) {
+      state.dartTelegraph -= delta;
+      if (state.dartTelegraph <= 0.0F) state.heartY = state.dartTarget;
+    } else if (state.dartTimer <= 0.0F) {
+      state.patternState = state.patternState * 1664525U + 1013904223U;
+      state.dartTarget = 0.1F + 0.8F *
+          (static_cast<float>(state.patternState) / 4294967295.0F);
+      state.dartTelegraph = 0.4F;
+      state.patternState = state.patternState * 1664525U + 1013904223U;
+      state.dartTimer = 5.0F + 2.0F *
+          (static_cast<float>(state.patternState) / 4294967295.0F);
     }
+  }
+  const float heartDelta = state.waypointY - state.heartY;
+  const float maxStep = speed[phase] * state.echoModifier * delta;
+  state.heartY += std::clamp(heartDelta, -maxStep, maxStep);
+  const float overlapHalf = 0.10F * (1.0F + state.focus) +
+                            zone[phase] * (1.0F + state.focus) / state.echoModifier;
+  const bool overlap = std::abs(state.lanceY - state.heartY) <= overlapHalf;
+  if (overlap) {
+    state.overlapTime += delta;
+    state.gauge += gain[phase] * delta;
   } else {
-    state.hazardRespawn -= delta;
-    if (state.hazardRespawn <= 0.0F) {
-      state.hazardActive = true;
-      state.hazardY = 0.0F;
-      state.hazardLane = (state.hazardLane + 1) % 3;
+    state.gauge -= drain[phase] * delta;
+  }
+  if (state.gauge >= 1.0F) {
+    if (state.phase == 2) {
+      state.finished = true;
+      state.cleared = true;
+    } else {
+      ++state.phase;
+      state.gauge = 0.25F;
+      state.retargetTimer = 0.0F;
+    }
+  } else if (state.gauge <= 0.0F && state.invulnerable <= 0.0F) {
+    ++state.heartsLost;
+    --state.hearts;
+    state.gauge = 0.25F;
+    state.invulnerable = 1.0F;
+    if (state.hearts <= 0) state.finished = true;
+  }
+}
+
+int heartpierceScore(const HeartpierceState& state) {
+  if (!state.cleared || state.totalTime <= 0.0F) return 0;
+  return static_cast<int>(std::clamp(state.overlapTime / state.totalTime, 0.0F, 1.0F) * 100.0F);
+}
+
+SoulDodgeState startSoulDodge(std::uint64_t seed, int ward, float duration) {
+  SoulDodgeState state;
+  state.patternState = static_cast<std::uint32_t>(seed);
+  state.hearts = 3 + std::max(0, ward);
+  state.duration = std::max(0.1F, duration);
+  state.patternTimer = 0.5F;
+  return state;
+}
+
+void updateSoulDodge(SoulDodgeState& state, float deltaSeconds, float moveX,
+                     float moveY, bool slowMove, int speed) {
+  if (state.finished) return;
+  const float delta = std::min(0.1F, std::max(0.0F, deltaSeconds));
+  state.elapsed = std::min(60.0F, state.elapsed + delta);
+  state.invulnerable = std::max(0.0F, state.invulnerable - delta);
+  state.slowMove = slowMove;
+  const float movement = (slowMove ? 0.13F : 0.25F) *
+                         std::clamp(1.0F + speed / 100.0F, 0.75F, 1.5F);
+  state.playerX = std::clamp(state.playerX + moveX * movement * delta, 0.03F, 0.97F);
+  state.playerY = std::clamp(state.playerY + moveY * movement * delta, 0.03F, 0.97F);
+
+  state.patternTimer -= delta;
+  if (state.patternTimer <= 0.0F) {
+    state.patternState = state.patternState * 1664525U + 1013904223U;
+    const auto kind = static_cast<SoulHazardKind>(state.patternState % 4U);
+    const int count = kind == SoulHazardKind::Laser
+                          ? 1
+                          : 5 + static_cast<int>((state.patternState >> 24) % 5U);
+    const float centerX = 0.2F +
+        static_cast<float>((state.patternState >> 8) % 600U) / 1000.0F;
+    const float centerY = 0.2F +
+        static_cast<float>((state.patternState >> 18) % 600U) / 1000.0F;
+    for (int index = 0; index < count; ++index) {
+      state.patternState = state.patternState * 1664525U + 1013904223U;
+      SoulHazard hazard;
+      hazard.kind = kind;
+      hazard.lifetime = kind == SoulHazardKind::Laser ? 2.2F : 3.8F;
+      hazard.telegraph = kind == SoulHazardKind::Laser ? 0.8F : 0.0F;
+      hazard.angle = static_cast<float>(state.patternState % 628U) / 100.0F +
+                     static_cast<float>(index) * 0.45F;
+      hazard.x = kind == SoulHazardKind::Rain
+                     ? 0.08F + static_cast<float>(index) / static_cast<float>(count - 1) * 0.84F
+                     : centerX;
+      hazard.y = kind == SoulHazardKind::Rain
+                     ? -0.08F
+                     : centerY;
+      hazard.radius = kind == SoulHazardKind::Ring
+                          ? 0.18F
+                          : (kind == SoulHazardKind::Spiral ? 0.02F : 0.0F);
+      state.hazards.push_back(hazard);
+    }
+    state.patternTimer = 1.3F - std::min(0.35F, state.elapsed / 180.0F);
+  }
+
+  for (auto& hazard : state.hazards) {
+    hazard.lifetime -= delta;
+    if (hazard.telegraph > 0.0F) hazard.telegraph -= delta;
+    if (hazard.kind == SoulHazardKind::Spiral || hazard.kind == SoulHazardKind::Ring) {
+      hazard.angle += delta * (hazard.kind == SoulHazardKind::Ring ? 0.9F : 1.4F);
+      hazard.radius += delta * (hazard.kind == SoulHazardKind::Ring ? 0.12F : 0.10F);
+    } else if (hazard.kind == SoulHazardKind::Rain) {
+      hazard.y += delta * 0.35F;
     }
   }
-  if (state.emberActive) {
-    state.emberY += delta * 0.18F;
-    if (state.emberY >= 0.82F) {
-      if (state.emberLane == state.lane) ++state.embers;
-      state.emberActive = false;
-      state.emberRespawn = 1.0F;
+  for (const auto& hazard : state.hazards) {
+    if (hazard.lifetime <= 0.0F || hazard.telegraph > 0.0F ||
+        state.invulnerable > 0.0F) continue;
+    float distance = 10.0F;
+    if (hazard.kind == SoulHazardKind::Laser) {
+      distance = std::abs(state.playerX - hazard.x);
+    } else if (hazard.kind == SoulHazardKind::Rain) {
+      distance = std::hypot(state.playerX - hazard.x, state.playerY - hazard.y);
+    } else {
+      const float hx = hazard.x + std::cos(hazard.angle) * hazard.radius;
+      const float hy = hazard.y + std::sin(hazard.angle) * hazard.radius;
+      distance = std::hypot(state.playerX - hx, state.playerY - hy);
     }
-  } else {
-    state.emberRespawn -= delta;
-    if (state.emberRespawn <= 0.0F) {
-      state.emberActive = true;
-      state.emberY = 0.0F;
-      state.emberLane = (state.emberLane + 2) % 3;
+    if (distance <= (hazard.kind == SoulHazardKind::Laser ? 0.045F : 0.035F)) {
+      ++state.hits;
+      --state.hearts;
+      state.invulnerable = 1.0F;
+      break;
     }
   }
-  if (state.scaleBreak) {
-    state.scaleElapsed += delta;
-    if (state.scaleElapsed >= 3.0F && state.burstTaps < 25) ++state.heartsLost;
-    if (state.scaleElapsed >= 3.0F) {
-      state.scaleBreak = false;
-      state.scaleElapsed = 0.0F;
-      state.burstTaps = 0;
-    }
-  } else if (state.elapsed >= state.nextScaleBreak) {
-    state.scaleBreak = true;
-    state.scaleElapsed = 0.0F;
-    state.nextScaleBreak += 15.0F;
-  }
-  if (state.heartsLost >= 3 || state.elapsed >= 45.0F) {
+  state.hazards.erase(std::remove_if(state.hazards.begin(), state.hazards.end(),
+                                     [](const SoulHazard& hazard) {
+                                       return hazard.lifetime <= 0.0F;
+                                     }),
+                      state.hazards.end());
+  if (state.hearts <= 0) {
     state.finished = true;
-    state.cleared = state.elapsed >= 45.0F && state.heartsLost < 3;
+  } else if (state.elapsed >= state.duration) {
+    state.finished = true;
+    state.cleared = true;
   }
 }
 
-void moveWyrmfireRun(WyrmfireRunState& state, int direction) {
-  if (!state.finished && direction != 0) {
-    state.lane = (state.lane + direction) % 3;
-    if (state.lane < 0) state.lane += 3;
+int soulDodgeScore(const SoulDodgeState& state) {
+  return state.cleared ? std::max(0, 100 - state.hits * 20) : 0;
+}
+
+CrownStrikeState startCrownStrike() {
+  return {};
+}
+
+void updateCrownStrike(CrownStrikeState& state, float deltaSeconds) {
+  if (state.finished) return;
+  state.needle += state.direction * std::max(0.0F, deltaSeconds) * 2.2F;
+  if (state.needle >= 1.0F) {
+    state.needle = 1.0F;
+    state.direction = -1.0F;
+  } else if (state.needle <= 0.0F) {
+    state.needle = 0.0F;
+    state.direction = 1.0F;
   }
 }
 
-void tapWyrmfireRun(WyrmfireRunState& state) {
-  if (!state.finished && state.scaleBreak) ++state.burstTaps;
+bool strikeCrown(CrownStrikeState& state, float focus) {
+  if (state.finished) return false;
+  const float zone = 0.05F * (1.0F + std::clamp(focus, 0.0F, 0.25F));
+  const bool hit = std::abs(state.needle - 0.5F) <= zone;
+  if (hit) ++state.hits;
+  else ++state.misses;
+  ++state.strike;
+  if (state.strike >= 3) {
+    state.finished = true;
+    state.cleared = state.hits == 3;
+  }
+  return hit;
 }
 
-int wyrmfireRunScore(const WyrmfireRunState& state, int speed) {
-  if (!state.cleared) return 0;
-  return 1 + state.embers + std::min(2, std::max(0, speed) / 40);
+int crownStrikeScore(const CrownStrikeState& state) {
+  return state.cleared ? state.hits : 0;
+}
+
+FiveTrialsState startFiveTrials(int ward) {
+  FiveTrialsState state;
+  state.maxHearts = state.hearts = 3 + std::max(0, ward);
+  return state;
+}
+
+bool advanceFiveTrials(FiveTrialsState& state, bool phaseCleared,
+                       int phaseHeartsLost) {
+  if (state.finished) return false;
+  state.heartsLost += std::max(0, phaseHeartsLost);
+  state.hearts -= std::max(0, phaseHeartsLost);
+  if (!phaseCleared || state.hearts <= 0) {
+    state.finished = true;
+    return false;
+  }
+  if (state.phase == 2 && !state.restoredBetweenPhases) {
+    state.hearts = std::min(state.maxHearts, state.hearts + 1);
+    state.restoredBetweenPhases = true;
+  }
+  if (state.phase == 5) {
+    state.finished = true;
+    state.cleared = true;
+    return true;
+  }
+  ++state.phase;
+  state.phaseElapsed = 0.0F;
+  return true;
+}
+
+int fiveTrialsScore(const FiveTrialsState& state) {
+  return state.cleared ? std::max(0, 3 - state.heartsLost) : 0;
 }
 
 } // namespace ed

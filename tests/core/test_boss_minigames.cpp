@@ -99,7 +99,7 @@ TEST_CASE("Rune Recall randomizes sequences and caps them at eight nodes") {
   REQUIRE(runes.round == 10);
 }
 
-TEST_CASE("Star Trace and Wyrmfire Run expose deterministic playable state") {
+TEST_CASE("Star Trace and Heartpierce expose deterministic playable state") {
   auto stars = ed::startStarTrace(4);
   for (int index = 0; index < 8; ++index) {
     const auto current = stars.stars;
@@ -108,22 +108,87 @@ TEST_CASE("Star Trace and Wyrmfire Run expose deterministic playable state") {
   }
   REQUIRE(stars.constellation >= 8);
 
-  auto run = ed::startWyrmfireRun();
-  ed::moveWyrmfireRun(run, -1);
-  REQUIRE(run.lane == 0);
-  ed::moveWyrmfireRun(run, 1);
-  REQUIRE(run.lane == 1);
-  ed::moveWyrmfireRun(run, 1);
-  REQUIRE(run.lane == 2);
-  ed::moveWyrmfireRun(run, 1);
-  REQUIRE(run.lane == 0);
-  ed::moveWyrmfireRun(run, 1);
-  REQUIRE(run.lane == 1);
-  ed::updateWyrmfireRun(run, 4.0F);
-  REQUIRE(run.heartsLost == 1);
-  REQUIRE_FALSE(run.hazardActive);
-  for (int index = 0; index < 25; ++index) ed::tapWyrmfireRun(run);
-  REQUIRE(run.burstTaps == 0);
-  ed::updateWyrmfireRun(run, 45.0F);
-  REQUIRE(run.finished);
+  auto run = ed::startHeartpierce(7);
+  const auto deterministic = ed::startHeartpierce(7);
+  ed::updateHeartpierce(run, 0.5F, true);
+  auto replay = deterministic;
+  ed::updateHeartpierce(replay, 0.5F, true);
+  REQUIRE(run.heartY == replay.heartY);
+  REQUIRE(run.lanceY == replay.lanceY);
+  ed::updateHeartpierce(run, 0.5F, false);
+  REQUIRE(run.lanceY > 0.5F);
+  REQUIRE(run.hearts == 3);
+  REQUIRE(ed::heartpierceScore(run) == 0);
+}
+
+TEST_CASE("Soul Dodge is deterministic and applies invulnerability after hits") {
+  auto first = ed::startSoulDodge(42);
+  auto second = ed::startSoulDodge(42);
+  ed::updateSoulDodge(first, 0.5F, 0.0F, 0.0F, false, 10);
+  ed::updateSoulDodge(second, 0.5F, 0.0F, 0.0F, false, 10);
+  REQUIRE(first.hazards.size() == second.hazards.size());
+  REQUIRE(first.patternState == second.patternState);
+  REQUIRE(first.playerX == 0.5F);
+  REQUIRE(first.playerY == 0.5F);
+  REQUIRE(first.hits == 0);
+  REQUIRE(ed::soulDodgeScore(first) == 0);
+  ed::SoulHazard collision;
+  collision.kind = ed::SoulHazardKind::Rain;
+  collision.x = 0.5F;
+  collision.y = 0.5F;
+  collision.lifetime = 1.0F;
+  first.hazards.push_back(collision);
+  first.patternTimer = 100.0F;
+  ed::updateSoulDodge(first, 0.01F, 0.0F, 0.0F, false, 10);
+  REQUIRE(first.hits == 1);
+  REQUIRE(first.invulnerable > 0.0F);
+  auto waveRun = ed::startSoulDodge(42);
+  for (int tick = 0; tick < 20; ++tick) {
+    ed::updateSoulDodge(waveRun, 0.1F, 0.0F, 0.0F, false, 10);
+  }
+  REQUIRE(waveRun.hazards.size() >= 5);
+  auto shortRun = ed::startSoulDodge(42, 0, 2.0F);
+  for (int tick = 0; tick < 20; ++tick) {
+    ed::updateSoulDodge(shortRun, 0.1F, 0.0F, 0.0F, false, 10);
+  }
+  REQUIRE(shortRun.finished);
+  REQUIRE((shortRun.cleared || shortRun.hearts <= 0));
+}
+
+TEST_CASE("Crown Strike requires three successful timing hits") {
+  auto strike = ed::startCrownStrike();
+  strike.needle = 0.5F;
+  REQUIRE(ed::strikeCrown(strike, 0.0F));
+  strike.needle = 0.5F;
+  REQUIRE(ed::strikeCrown(strike, 0.0F));
+  strike.needle = 0.5F;
+  REQUIRE(ed::strikeCrown(strike, 0.0F));
+  REQUIRE(strike.finished);
+  REQUIRE(strike.cleared);
+  REQUIRE(ed::crownStrikeScore(strike) == 3);
+}
+
+TEST_CASE("Five Trials restores one heart only between phases two and three") {
+  auto trials = ed::startFiveTrials(0);
+  REQUIRE(trials.hearts == 3);
+  REQUIRE(ed::advanceFiveTrials(trials, true, 1));
+  REQUIRE(trials.phase == 2);
+  REQUIRE(ed::advanceFiveTrials(trials, true, 1));
+  REQUIRE(trials.phase == 3);
+  REQUIRE(trials.hearts == 2);
+  REQUIRE(trials.restoredBetweenPhases);
+  REQUIRE(ed::advanceFiveTrials(trials, true, 0));
+  REQUIRE(trials.phase == 4);
+  REQUIRE(trials.hearts == 2);
+}
+
+TEST_CASE("Parry Duel supports the shorter Hollow King attack sequence") {
+  auto duel = ed::startParryDuel(9, 12);
+  REQUIRE(duel.maxAttacks == 12);
+  for (int attack = 0; attack < 12; ++attack) {
+    ed::parryDuelInput(duel, duel.direction);
+    if (duel.finished) break;
+  }
+  REQUIRE(duel.finished);
+  REQUIRE(duel.attack == 12);
 }
