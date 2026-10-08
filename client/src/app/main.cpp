@@ -1212,7 +1212,7 @@ void drawGemHollowScreen(AppState& app) {
     }
     st.lastGemHollowDate = today;
     st.gemHollowActive = true;
-    st.gemHollowSwingsRemaining = 25 + st.gemHollowStreak;
+    st.gemHollowSwingsRemaining = 40 + st.gemHollowStreak;
     st.gemHollowTodayGems = 0;
     st.gemHollowTodayDust = 0;
     st.gemHollowTodayGold = 0;
@@ -1465,7 +1465,7 @@ void drawInventoryScreen(const AppState& app) {
     }
   }
   EndScissorMode();
-  DrawRectangle(0, 685, 1280, 35, Color{28, 27, 39, 0});
+  DrawRectangle(0, 685, 1280, 35, Color{28, 27, 39, 200});
   DrawText(("Gear " + std::to_string(app.selectedGear + 1) + "/" +
             std::to_string(app.inventory.gear.size()) + "   Scroll: mouse wheel or W/S")
                .c_str(),
