@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <limits>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -31,11 +32,18 @@ std::pair<std::string, std::string> splitKeyValue(const std::string& line) {
 bool parseIntValue(const std::string& value, int& out) {
   try {
     size_t parsed = 0;
-    const int converted = std::stoi(value, &parsed);
+    const long long converted = std::stoll(value, &parsed);
     if (parsed != value.size()) {
       return false;
     }
-    out = converted;
+    // Clamp overflowed values instead of failing
+    if (converted > std::numeric_limits<int>::max()) {
+      out = std::numeric_limits<int>::max();
+    } else if (converted < std::numeric_limits<int>::min()) {
+      out = std::numeric_limits<int>::min();
+    } else {
+      out = static_cast<int>(converted);
+    }
     return true;
   } catch (...) {
     return false;

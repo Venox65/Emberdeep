@@ -120,6 +120,8 @@ struct AppState {
   float shake = 0.0F;
   std::string notice = "Click the block to mine.";
   float noticeLifetime = 4.0F;
+  bool gemHollowShowSummary = false;
+  std::vector<std::string> gemHollowSummaryItems;
 };
 
 ed::SaveSnapshot makeSnapshot(const AppState& app) {
@@ -1256,9 +1258,6 @@ void drawGemHollowScreen(AppState& app) {
             for (int v : st.gemHollowVeins) {
               if (v > 0) { allCleared = false; break; }
             }
-            if (allCleared) {
-              st.gemHollowSwingsRemaining = 0;
-            }
             
             if (st.gemHollowVeins[i] == 0) {
               int roll = app.rng.nextRange(0, 99);
@@ -1267,23 +1266,32 @@ void drawGemHollowScreen(AppState& app) {
                 const char* gemIds[] = {"amber", "garnet", "jade", "moonstone", "sapphire", "bloodstone", "star-ruby", "arcane-opal", "dragon-eye", "aether-diamond"};
                 std::string gemId = gemIds[app.rng.nextRange(0, 9)];
                 app.inventory.gems[gemId]++;
+                app.gemHollowSummaryItems.push_back("Gem: " + gemId);
                 setNotice(app, "Found a " + gemId + "!");
               } else if (roll < 80) {
                 int dust = 2 + app.rng.nextRange(0, 4);
                 st.gemHollowTodayDust += dust;
                 st.arcaneDust += dust;
+                app.gemHollowSummaryItems.push_back("Arcane Dust x" + std::to_string(dust));
                 setNotice(app, "Found " + std::to_string(dust) + " Arcane Dust!");
               } else {
                 int gold = 50 + app.rng.nextRange(0, 49);
                 st.gemHollowTodayGold += gold;
                 st.gold += gold;
+                app.gemHollowSummaryItems.push_back("Gold x" + std::to_string(gold));
                 setNotice(app, "Found " + std::to_string(gold) + " Gold!");
               }
             } else {
               setNotice(app, "Hit vein!");
             }
+            
+            // Show summary popup when out of swings or all veins cleared
+            if (allCleared || st.gemHollowSwingsRemaining == 0) {
+              st.gemHollowSwingsRemaining = 0;
+              app.gemHollowShowSummary = true;
+            }
           } else {
-            setNotice(app, "Out of swings!");
+            app.gemHollowShowSummary = true;
           }
         }
       }
@@ -1291,7 +1299,36 @@ void drawGemHollowScreen(AppState& app) {
       DrawRectangle(x, y, 100, 100, Color{40, 40, 50, 255});
     }
   }
+  
+  // Summary popup
+  if (app.gemHollowShowSummary) {
+    DrawRectangle(290, 180, 700, 380, Color{18, 17, 28, 240});
+    DrawRectangleLinesEx({290, 180, 700, 380}, 2.0F, Color{224, 187, 106, 255});
+    drawTextCentered("GEM HOLLOW COMPLETE", 210, 30, Color{224, 187, 106, 255});
+    DrawText(("Gems found: " + std::to_string(st.gemHollowTodayGems)).c_str(), 330, 250, 18, RAYWHITE);
+    DrawText(("Arcane Dust: " + std::to_string(st.gemHollowTodayDust)).c_str(), 330, 278, 18, Color{180, 220, 255, 255});
+    DrawText(("Gold: " + std::to_string(st.gemHollowTodayGold)).c_str(), 330, 306, 18, Color{248, 211, 89, 255});
+    DrawText("Items received:", 330, 345, 16, Color{174, 174, 187, 255});
+    int itemY = 368;
+    int shown = 0;
+    for (const auto& item : app.gemHollowSummaryItems) {
+      if (shown >= 6) { DrawText("...", 330, itemY, 15, Color{174, 174, 187, 255}); break; }
+      DrawText(("- " + item).c_str(), 330, itemY, 15, RAYWHITE);
+      itemY += 22;
+      shown++;
+    }
+    DrawRectangleRounded({490, 520, 300, 36}, 0.2F, 6, Color{112, 76, 45, 255});
+    drawTextCentered("Click to close", 535, 18, RAYWHITE);
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+      Vector2 mouse = GetMousePosition();
+      if (mouse.x >= 490 && mouse.x <= 790 && mouse.y >= 520 && mouse.y <= 556) {
+        app.gemHollowShowSummary = false;
+        app.gemHollowSummaryItems.clear();
+      }
+    }
+  }
 }
+
 
 void drawEnchantingScreen(AppState& app) {
   drawTextCentered("ENCHANTING", 108, 34, Color{224, 187, 106, 255});
@@ -1465,13 +1502,6 @@ void drawInventoryScreen(const AppState& app) {
     }
   }
   EndScissorMode();
-  DrawRectangle(0, 685, 1280, 35, Color{28, 27, 39, 200});
-  DrawText(("Gear " + std::to_string(app.selectedGear + 1) + "/" +
-            std::to_string(app.inventory.gear.size()) + "   Scroll: mouse wheel or W/S")
-               .c_str(),
-           70, 695, 15, Color{174, 174, 187, 255});
-  DrawText("A / D select gear   U upgrade   E equip   G insert gem   R remove gem   N enchant", 420, 695, 15,
-           Color{174, 174, 187, 255});
 }
 
 void drawCraftingScreen(const AppState& app) {
@@ -2288,7 +2318,16 @@ int main() {
       DrawRectangle(300, 625, 680, 30, Color{35, 34, 45, 230});
       drawTextCentered(app.notice, 632, 16, Color{234, 229, 202, 255});
     }
+    if (app.screen == Screen::Inventory && !app.needsAccountChoice && !app.accountForm) {
+      DrawRectangle(0, 685, 1280, 35, Color{28, 27, 39, 200});
+      DrawText(("Gear " + std::to_string(app.selectedGear + 1) + "/" +
+                std::to_string(app.inventory.gear.size()) + "   Scroll: W/S").c_str(),
+               70, 695, 14, Color{174, 174, 187, 255});
+      DrawText("A/D select   U upgrade   E equip   G insert gem   R remove gem   N enchant", 360, 695, 14,
+               Color{174, 174, 187, 255});
+    }
     EndDrawing();
+
   }
 
   stopSaveWorker(app);
