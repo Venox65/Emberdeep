@@ -39,6 +39,20 @@ Run the terminal playtest:
 ./build/client/emberdeep_playtest
 ```
 
+## Equipment gems
+
+Gear from tier 4 onward can have sockets. Gems found during dungeon runs or
+other progression can be inserted into the selected gear piece from the
+Inventory screen:
+
+- `G` inserts the first available gem into the selected gear piece.
+- `R` removes the selected piece's last socketed gem and returns it to inventory.
+
+The Inventory screen shows each piece's used and available sockets. Socketed
+gems are saved with the equipment, and their bonuses apply while that piece is
+equipped. Gem definitions and their effects are listed in
+`core/include/ed/data_model.hpp`.
+
 ## Backend deployment
 
 The production profile uses PostgreSQL 16, the C++ API, and Caddy for HTTPS.

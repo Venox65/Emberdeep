@@ -118,4 +118,43 @@ bool upgradeGear(GameState& game, GearPiece& piece) {
   return true;
 }
 
+
+int enchantDustCost(const GearPiece& piece) {
+  return 5 * piece.tier + piece.enchantRerolls * 5;
+}
+
+int enchantGoldCost(const GearPiece& piece) {
+  return 50 * piece.tier + piece.enchantRerolls * 50;
+}
+
+bool enchantGearPiece(GameState& game, InventoryState& inventory, const std::string& itemId, Pcg32& rng) {
+  GearPiece* target = nullptr;
+  for (auto& piece : inventory.gear) {
+    if (piece.itemId == itemId) {
+      target = &piece;
+      break;
+    }
+  }
+  if (!target) return false;
+
+  int dust = enchantDustCost(*target);
+  int gold = enchantGoldCost(*target);
+
+  if (game.player.arcaneDust < dust || game.player.gold < gold) {
+    return false;
+  }
+
+  game.player.arcaneDust -= dust;
+  game.player.gold -= gold;
+
+  const char* enchants[] = {
+    "mining-power", "crit-chance", "luck", "max-hp",
+    "attack", "speed", "pierce"
+  };
+  int choice = rng.nextRange(0, 6);
+  target->enchantment = enchants[choice];
+  target->enchantRerolls++;
+  game.dirty = true;
+  return true;
+}
 } // namespace ed

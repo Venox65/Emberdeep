@@ -43,6 +43,8 @@ enum class Screen {
   Campaign,
   Dungeon,
   Profile,
+  GemHollow,
+  Enchanting,
 };
 
 struct FloatingText {
@@ -60,6 +62,7 @@ struct Particle {
 };
 
 struct AppState {
+  bool sidebarOpen = false;
   ed::GameState game;
   ed::InventoryState inventory;
   ed::MiningProgress block;
@@ -392,6 +395,8 @@ const char* screenName(Screen screen) {
     case Screen::Crafting: return "CRAFTING";
     case Screen::Campaign: return "CAMPAIGN";
     case Screen::Dungeon: return "DUNGEON";
+    case Screen::GemHollow: return "GEM HOLLOW";
+    case Screen::Enchanting: return "ENCHANTING";
     case Screen::Profile: return "PROFILE";
   }
   return "";
@@ -689,7 +694,7 @@ void drawTopBar(const AppState& app) {
            Color{232, 145, 236, 255});
   DrawText(("Ember " + std::to_string(app.game.player.emberMarks)).c_str(), 915, 28, 18,
            Color{255, 139, 65, 255});
-  DrawText("1 Mine   2 Inventory   3 Crafting   4 Campaign   5 Dungeon   6 Profile   F5 Save", 26, 55, 15,
+  DrawText("1 Mine   2 Inventory   3 Crafting   4 Campaign   5 Dungeon   6 Gem Hollow   7 Enchant   8 Profile   F5 Save", 16, 55, 14,
            Color{156, 156, 173, 255});
   DrawRectangleRounded({1010, 14, 72, 34}, 0.2F, 8, Color{52, 76, 67, 255});
   DrawText("SAVE", 1026, 24, 15, Color{210, 255, 220, 255});
@@ -698,15 +703,38 @@ void drawTopBar(const AppState& app) {
 }
 
 void drawNavigation(const AppState& app) {
-  DrawRectangle(0, 665, kWidth, 55, Color{28, 27, 39, 255});
-  for (int i = 0; i < 6; ++i) {
-    const int x = 18 + i * 210;
-    const Screen screen = static_cast<Screen>(i);
-    const bool active = app.screen == screen;
-    DrawRectangleRounded({static_cast<float>(x), 675.0F, 170.0F, 34.0F}, 0.25F, 8,
-                         active ? Color{112, 76, 45, 255} : Color{48, 47, 61, 255});
-    DrawText(screenName(screen), x + 24, 684, 15, active ? RAYWHITE : Color{170, 170, 180, 255});
+  if (app.sidebarOpen) {
+    DrawRectangle(0, 0, 200, 720, Color{28, 27, 39, 240});
+    DrawText("MENU", 20, 20, 20, RAYWHITE);
+    // Draw close button
+    DrawRectangleRounded({150, 15, 30, 30}, 0.2F, 4, Color{200, 50, 50, 255});
+    DrawText("X", 158, 20, 20, RAYWHITE);
+    
+    const Screen navScreens[] = {Screen::Mine, Screen::Inventory, Screen::Crafting, Screen::Campaign, Screen::Dungeon, Screen::GemHollow, Screen::Enchanting, Screen::Profile};
+    for (int i = 0; i < 8; ++i) {
+      const int y = 80 + i * 50;
+      const Screen screen = navScreens[i];
+      const bool active = app.screen == screen;
+      DrawRectangleRounded({10, static_cast<float>(y), 180, 40}, 0.2F, 4, active ? Color{112, 76, 45, 255} : Color{48, 47, 61, 255});
+      DrawText(screenName(screen), 20, y + 12, 16, active ? RAYWHITE : Color{170, 170, 180, 255});
+    }
+  } else {
+    // Hamburger menu button on the right, below the sign out button
+    DrawRectangleRounded({1220, 100, 40, 40}, 0.2F, 4, Color{48, 47, 61, 200});
+    DrawRectangle(1228, 110, 24, 4, RAYWHITE);
+    DrawRectangle(1228, 118, 24, 4, RAYWHITE);
+    DrawRectangle(1228, 126, 24, 4, RAYWHITE);
   }
+}
+
+#include <map>
+
+std::map<std::string, Texture2D> g_textures;
+Texture2D getTexture(const std::string& path) {
+    if (g_textures.find(path) == g_textures.end()) {
+        g_textures[path] = LoadTexture(path.c_str());
+    }
+    return g_textures[path];
 }
 
 void drawMineScreen(const AppState& app) {
@@ -727,12 +755,27 @@ void drawMineScreen(const AppState& app) {
   const int blockX = 640 - blockSize / 2;
   const int blockY = 305 - blockSize / 2;
   const Color blockColor = materialColor(app.blockSpec);
-  DrawRectangleRounded({static_cast<float>(blockX), static_cast<float>(blockY),
-                        static_cast<float>(blockSize), static_cast<float>(blockSize)},
-                       0.14F, 12, blockColor);
-  DrawRectangleLinesEx({static_cast<float>(blockX), static_cast<float>(blockY),
-                        static_cast<float>(blockSize), static_cast<float>(blockSize)},
-                       5.0F, Color{239, 225, 189, 255});
+  std::string baseName = app.blockSpec.materialId;
+  std::replace(baseName.begin(), baseName.end(), '-', '_');
+  std::string texName = "sprites/Mining_Block/" + baseName + (hpRatio <= 0.50F ? "_break.png" : "_idle.png");
+  Texture2D tex = getTexture(texName);
+  
+  if (tex.id != 0) {
+      int frames = tex.width / 32;
+      if (frames < 1) frames = 1;
+      int frame = (static_cast<int>(GetTime() * 60) / 15) % frames;
+      Rectangle source = {static_cast<float>(frame * 32), 0.0f, 32.0f, 32.0f};
+      DrawTexturePro(tex, source, 
+                     {static_cast<float>(blockX), static_cast<float>(blockY), static_cast<float>(blockSize), static_cast<float>(blockSize)}, 
+                     {0, 0}, 0.0f, WHITE);
+  } else {
+      DrawRectangleRounded({static_cast<float>(blockX), static_cast<float>(blockY),
+                            static_cast<float>(blockSize), static_cast<float>(blockSize)},
+                           0.14F, 12, blockColor);
+      DrawRectangleLinesEx({static_cast<float>(blockX), static_cast<float>(blockY),
+                            static_cast<float>(blockSize), static_cast<float>(blockSize)},
+                           5.0F, Color{239, 225, 189, 255});
+  }
   DrawCircle(590, 302, 13, Color{255, 255, 255, 130});
   DrawCircle(690, 352, 9, Color{255, 255, 255, 100});
   DrawText(app.blockSpec.materialName.c_str(), blockX + 18, blockY + blockSize + 18, 23, RAYWHITE);
@@ -1146,6 +1189,154 @@ void drawDungeonScreen(const AppState& app) {
   DrawText("ENTER to run", 330, 405, 20, Color{122, 217, 255, 255});
 }
 
+std::string getCurrentDateString() {
+  auto now = std::chrono::system_clock::now();
+  std::time_t t = std::chrono::system_clock::to_time_t(now);
+  std::tm* tm = std::localtime(&t);
+  char buf[16];
+  std::strftime(buf, sizeof(buf), "%Y-%m-%d", tm);
+  return std::string(buf);
+}
+
+void drawGemHollowScreen(AppState& app) {
+  drawTextCentered("GEM HOLLOW", 108, 34, Color{224, 187, 106, 255});
+  
+  std::string today = getCurrentDateString();
+  auto& st = app.game.player;
+  
+  if (st.lastGemHollowDate != today) {
+    if (st.lastGemHollowDate.empty()) {
+      st.gemHollowStreak = 0;
+    } else {
+      st.gemHollowStreak = std::min(10, st.gemHollowStreak + 1);
+    }
+    st.lastGemHollowDate = today;
+    st.gemHollowActive = true;
+    st.gemHollowSwingsRemaining = 25 + st.gemHollowStreak;
+    st.gemHollowTodayGems = 0;
+    st.gemHollowTodayDust = 0;
+    st.gemHollowTodayGold = 0;
+    
+    st.gemHollowVeins.clear();
+    for (int i = 0; i < 12; ++i) {
+      st.gemHollowVeins.push_back(app.rng.nextRange(1, 3));
+    }
+  }
+  
+  DrawText(("Swings Remaining: " + std::to_string(st.gemHollowSwingsRemaining)).c_str(), 50, 150, 20, RAYWHITE);
+  DrawText(("Today's Loot: " + std::to_string(st.gemHollowTodayGems) + " Gems | " + 
+            std::to_string(st.gemHollowTodayDust) + " Dust | " + 
+            std::to_string(st.gemHollowTodayGold) + " Gold").c_str(), 50, 180, 20, Color{248, 211, 89, 255});
+            
+  const int startX = 300;
+  const int startY = 250;
+  const int spacingX = 180;
+  const int spacingY = 140;
+  
+  for (int i = 0; i < 12; ++i) {
+    int col = i % 4;
+    int row = i / 4;
+    int x = startX + col * spacingX;
+    int y = startY + row * spacingY;
+    
+    int dur = st.gemHollowVeins[i];
+    
+    if (dur > 0) {
+      DrawRectangle(x, y, 100, 100, Color{80, 80, 90, 255});
+      DrawText(std::to_string(dur).c_str(), x + 40, y + 40, 20, RAYWHITE);
+      
+      if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+        Vector2 mouse = GetMousePosition();
+        if (mouse.x >= x && mouse.x <= x + 100 && mouse.y >= y && mouse.y <= y + 100) {
+          if (st.gemHollowSwingsRemaining > 0) {
+            st.gemHollowSwingsRemaining--;
+            st.gemHollowVeins[i]--;
+            
+            bool allCleared = true;
+            for (int v : st.gemHollowVeins) {
+              if (v > 0) { allCleared = false; break; }
+            }
+            if (allCleared) {
+              st.gemHollowSwingsRemaining = 0;
+            }
+            
+            if (st.gemHollowVeins[i] == 0) {
+              int roll = app.rng.nextRange(0, 99);
+              if (roll < 45) {
+                st.gemHollowTodayGems++;
+                const char* gemIds[] = {"amber", "garnet", "jade", "moonstone", "sapphire", "bloodstone", "star-ruby", "arcane-opal", "dragon-eye", "aether-diamond"};
+                std::string gemId = gemIds[app.rng.nextRange(0, 9)];
+                app.inventory.gems[gemId]++;
+                setNotice(app, "Found a " + gemId + "!");
+              } else if (roll < 80) {
+                int dust = 2 + app.rng.nextRange(0, 4);
+                st.gemHollowTodayDust += dust;
+                st.arcaneDust += dust;
+                setNotice(app, "Found " + std::to_string(dust) + " Arcane Dust!");
+              } else {
+                int gold = 50 + app.rng.nextRange(0, 49);
+                st.gemHollowTodayGold += gold;
+                st.gold += gold;
+                setNotice(app, "Found " + std::to_string(gold) + " Gold!");
+              }
+            } else {
+              setNotice(app, "Hit vein!");
+            }
+          } else {
+            setNotice(app, "Out of swings!");
+          }
+        }
+      }
+    } else {
+      DrawRectangle(x, y, 100, 100, Color{40, 40, 50, 255});
+    }
+  }
+}
+
+void drawEnchantingScreen(AppState& app) {
+  drawTextCentered("ENCHANTING", 108, 34, Color{224, 187, 106, 255});
+  
+  if (app.game.player.level < 20) {
+    DrawText("Enchanting unlocks at Level 20.", 300, 300, 20, Color{180, 50, 50, 255});
+    return;
+  }
+  
+  DrawText("Select an item from your inventory to enchant.", 50, 150, 18, RAYWHITE);
+  
+  int y = 200;
+  for (size_t i = 0; i < app.inventory.gear.size(); ++i) {
+    auto& piece = app.inventory.gear[i];
+    std::string text = piece.name + " (Lv " + std::to_string(piece.tier) + ") - " + piece.slot;
+    if (!piece.enchantment.empty()) text += " [*]";
+    
+    Color c = (app.selectedGear == i) ? Color{255, 238, 180, 255} : RAYWHITE;
+    DrawText(text.c_str(), 100, y, 18, c);
+    y += 30;
+  }
+  
+  DrawText("W / S select gear | N enchant selected", 50, y + 40, 18, Color{174, 174, 187, 255});
+  
+  if (app.selectedGear < app.inventory.gear.size()) {
+    auto& piece = app.inventory.gear[app.selectedGear];
+    int dustCost = ed::enchantDustCost(piece);
+    int goldCost = ed::enchantGoldCost(piece);
+    
+    DrawRectangle(600, 200, 400, 300, Color{40, 40, 50, 255});
+    DrawText(piece.name.c_str(), 620, 220, 24, RAYWHITE);
+    DrawText(("Cost: " + std::to_string(dustCost) + " Dust | " + std::to_string(goldCost) + " Gold").c_str(), 620, 260, 20, Color{248, 211, 89, 255});
+    
+    if (!piece.enchantment.empty()) {
+      DrawText(("Current Enchantment: " + piece.enchantment).c_str(), 620, 300, 18, Color{150, 255, 150, 255});
+    } else {
+      DrawText("No Enchantment", 620, 300, 18, Color{180, 180, 180, 255});
+    }
+    
+    DrawText(("Your Dust: " + std::to_string(app.game.player.arcaneDust)).c_str(), 620, 360, 18, RAYWHITE);
+    DrawText(("Your Gold: " + std::to_string(app.game.player.gold)).c_str(), 620, 390, 18, RAYWHITE);
+  }
+}
+
+
 void drawProfileScreen(const AppState& app) {
   drawTextCentered("PROFILE", 108, 34, Color{224, 187, 106, 255});
   const auto& player = app.game.player;
@@ -1274,12 +1465,12 @@ void drawInventoryScreen(const AppState& app) {
     }
   }
   EndScissorMode();
-  DrawRectangle(0, 630, 1280, 35, Color{28, 27, 39, 255});
+  DrawRectangle(0, 685, 1280, 35, Color{28, 27, 39, 0});
   DrawText(("Gear " + std::to_string(app.selectedGear + 1) + "/" +
             std::to_string(app.inventory.gear.size()) + "   Scroll: mouse wheel or W/S")
                .c_str(),
-           70, 640, 15, Color{174, 174, 187, 255});
-  DrawText("A / D select gear   U upgrade selected   E equip selected", 420, 640, 15,
+           70, 695, 15, Color{174, 174, 187, 255});
+  DrawText("A / D select gear   U upgrade   E equip   G insert gem   R remove gem   N enchant", 420, 695, 15,
            Color{174, 174, 187, 255});
 }
 
@@ -1698,16 +1889,23 @@ void handleInput(AppState& app) {
       signOut(app);
       return;
     }
-    for (int i = 0; i < 6; ++i) {
-      const Rectangle navigationButton = {
-          18.0F + static_cast<float>(i * 210),
-          675.0F,
-          170.0F,
-          34.0F,
-      };
-      if (CheckCollisionPointRec(mouse, navigationButton)) {
-        app.screen = static_cast<Screen>(i);
-        break;
+    if (app.sidebarOpen) {
+      if (CheckCollisionPointRec(mouse, {150, 15, 30, 30})) {
+        app.sidebarOpen = false;
+      } else {
+        const Screen navScreens[] = {Screen::Mine, Screen::Inventory, Screen::Crafting, Screen::Campaign, Screen::Dungeon, Screen::GemHollow, Screen::Enchanting, Screen::Profile};
+        for (int i = 0; i < 8; ++i) {
+          const int y = 80 + i * 50;
+          if (CheckCollisionPointRec(mouse, {10, static_cast<float>(y), 180, 40})) {
+            app.screen = navScreens[i];
+            app.sidebarOpen = false;
+            break;
+          }
+        }
+      }
+    } else {
+      if (CheckCollisionPointRec(mouse, {1220, 100, 40, 40})) {
+        app.sidebarOpen = true;
       }
     }
   }
@@ -1717,7 +1915,9 @@ void handleInput(AppState& app) {
   if (IsKeyPressed(KEY_THREE)) app.screen = Screen::Crafting;
   if (IsKeyPressed(KEY_FOUR)) app.screen = Screen::Campaign;
   if (IsKeyPressed(KEY_FIVE)) app.screen = Screen::Dungeon;
-  if (IsKeyPressed(KEY_SIX)) app.screen = Screen::Profile;
+  if (IsKeyPressed(KEY_SIX)) app.screen = Screen::GemHollow;
+  if (IsKeyPressed(KEY_SEVEN)) app.screen = Screen::Enchanting;
+  if (IsKeyPressed(KEY_EIGHT)) app.screen = Screen::Profile;
 
   if (app.screen == Screen::Mine) {
     if (IsKeyPressed(KEY_Q)) {
@@ -1783,6 +1983,40 @@ void handleInput(AppState& app) {
       }
       app.game.dirty = equipped;
       setNotice(app, equipped ? "Gear equipped. Stats updated." : "Cannot equip gear.");
+    }
+    if (!app.inventory.gear.empty() && IsKeyPressed(KEY_N)) {
+      app.screen = Screen::Enchanting;
+    }
+    if (!app.inventory.gear.empty() && IsKeyPressed(KEY_G)) {
+      auto& piece = app.inventory.gear[static_cast<std::size_t>(app.selectedGear)];
+      if (piece.socketedGems.size() < piece.sockets) {
+        std::string gemToInsert = "";
+        for (const auto& [gemId, count] : app.inventory.gems) {
+          if (count > 0) {
+            gemToInsert = gemId;
+            break;
+          }
+        }
+        if (!gemToInsert.empty()) {
+          ed::insertGem(app.inventory, piece, gemToInsert);
+          app.game.dirty = true;
+          setNotice(app, "Inserted " + gemToInsert + ".");
+        } else {
+          setNotice(app, "No gems available.");
+        }
+      } else {
+        setNotice(app, "No free sockets.");
+      }
+    }
+    if (!app.inventory.gear.empty() && IsKeyPressed(KEY_R)) {
+      auto& piece = app.inventory.gear[static_cast<std::size_t>(app.selectedGear)];
+      if (!piece.socketedGems.empty()) {
+        ed::removeGem(app.inventory, piece, piece.socketedGems.size() - 1);
+        app.game.dirty = true;
+        setNotice(app, "Removed gem.");
+      } else {
+        setNotice(app, "No gems to remove.");
+      }
     }
   } else if (app.screen == Screen::Crafting) {
     if (IsKeyPressed(KEY_A)) {
@@ -2037,6 +2271,8 @@ int main() {
         case Screen::Campaign: drawCampaignScreen(app); break;
         case Screen::Dungeon: drawDungeonScreen(app); break;
         case Screen::Profile: drawProfileScreen(app); break;
+        case Screen::GemHollow: drawGemHollowScreen(app); break;
+        case Screen::Enchanting: drawEnchantingScreen(app); break;
       }
       drawNavigation(app);
     }

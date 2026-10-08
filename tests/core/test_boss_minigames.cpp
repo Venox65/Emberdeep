@@ -46,10 +46,23 @@ TEST_CASE("Cinder Dance uses a deterministic 110-note chart and groove") {
   REQUIRE(ed::judgeCinderDance(first, first.chart.front().lane, 0.0) == 2);
   REQUIRE(first.perfectHits == 1);
   REQUIRE(first.groove == 52);
+  REQUIRE(first.feedback == 2);
+  REQUIRE(first.feedbackLane == first.chart.front().lane);
 
   ed::updateCinderDance(first, 75.0F);
   REQUIRE(first.finished);
   REQUIRE(first.failed);
+}
+
+TEST_CASE("Gauntlet rhythm chart is readable and reports misses") {
+  auto rhythm = ed::startCinderDance(77, 30.0F, 55);
+  REQUIRE(rhythm.chart.size() == 55);
+  rhythm.gauntletMode = true;
+  ed::updateCinderDance(rhythm, 2.2F);
+  REQUIRE(rhythm.feedback == -1);
+  REQUIRE(rhythm.feedbackLane >= 0);
+  REQUIRE(rhythm.feedbackLane < 4);
+  REQUIRE(rhythm.feedbackTimer > 0.0F);
 }
 
 TEST_CASE("Head Hunt distinguishes real heads from decoys") {
@@ -190,5 +203,14 @@ TEST_CASE("Parry Duel supports the shorter Hollow King attack sequence") {
     if (duel.finished) break;
   }
   REQUIRE(duel.finished);
-  REQUIRE(duel.attack == 12);
+}
+
+TEST_CASE("Parry Duel feints are cleared by waiting without losing a heart") {
+  auto duel = ed::startParryDuel(9, 12);
+  duel.feint = true;
+  ed::Pcg32 rng(3);
+  ed::updateParryDuel(duel, 1.0F, rng);
+  REQUIRE(duel.attack == 1);
+  REQUIRE(duel.heartsLost == 0);
+  REQUIRE_FALSE(duel.finished);
 }

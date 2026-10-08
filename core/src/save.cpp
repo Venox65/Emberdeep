@@ -32,7 +32,12 @@ std::string serializeSaveSnapshot(const SaveSnapshot& snapshot) {
   for (const auto& piece : snapshot.inventory.gear) {
     out << "gear=" << piece.slot << "|" << piece.itemId << "|" << piece.name << "|"
         << piece.tier << "|" << piece.upgradeLevel << "|" << piece.sockets << "|"
-        << (piece.legendary ? 1 : 0) << "\n";
+        << (piece.legendary ? 1 : 0) << "|";
+    for (std::size_t i = 0; i < piece.socketedGems.size(); ++i) {
+      if (i > 0) out << ",";
+      out << piece.socketedGems[i];
+    }
+    out << "|" << piece.enchantment << "|" << piece.enchantRerolls << "\n";
   }
   out << "equipped.pickaxe=" << snapshot.inventory.equipped.pickaxeId << "\n";
   out << "equipped.helm=" << snapshot.inventory.equipped.helmId << "\n";
@@ -82,11 +87,22 @@ bool deserializeSaveSnapshot(const std::string& text, SaveSnapshot& snapshot) {
       std::string field;
       std::vector<std::string> fields;
       while (std::getline(gearInput, field, '|')) fields.push_back(field);
-      if (fields.size() == 7) {
+      if (fields.size() >= 7) {
         try {
-          snapshot.inventory.gear.push_back(
-              {fields[0], fields[1], fields[2], std::stoi(fields[3]), std::stoi(fields[4]),
-               std::stoi(fields[5]), std::stoi(fields[6]) != 0});
+          GearPiece piece{fields[0], fields[1], fields[2], std::stoi(fields[3]),
+                          std::stoi(fields[4]), std::stoi(fields[5]),
+                          std::stoi(fields[6]) != 0};
+          if (fields.size() >= 8) {
+            std::istringstream gemsInput(fields[7]);
+            while (std::getline(gemsInput, field, ',')) {
+              if (!field.empty()) piece.socketedGems.push_back(field);
+            }
+          }
+          if (fields.size() >= 10) {
+            piece.enchantment = fields[8];
+            piece.enchantRerolls = std::stoi(fields[9]);
+          }
+          snapshot.inventory.gear.push_back(std::move(piece));
         } catch (...) {
           return false;
         }

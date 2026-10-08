@@ -93,6 +93,19 @@ std::string serializeGameState(const GameState& game) {
   out << "gold_earned_this_run=" << game.player.goldEarnedThisRun << '\n';
   out << "pickaxe_tier=" << game.player.pickaxeTier << '\n';
   out << "current_layer=" << game.player.currentLayer << '\n';
+  out << "last_gem_hollow_date=" << game.player.lastGemHollowDate << '\n';
+  out << "gem_hollow_streak=" << game.player.gemHollowStreak << '\n';
+  out << "gem_hollow_swings_remaining=" << game.player.gemHollowSwingsRemaining << '\n';
+  out << "gem_hollow_today_gems=" << game.player.gemHollowTodayGems << '\n';
+  out << "gem_hollow_today_dust=" << game.player.gemHollowTodayDust << '\n';
+  out << "gem_hollow_today_gold=" << game.player.gemHollowTodayGold << '\n';
+  out << "gem_hollow_active=" << (game.player.gemHollowActive ? 1 : 0) << '\n';
+  out << "gem_hollow_veins=";
+  for (std::size_t i = 0; i < game.player.gemHollowVeins.size(); ++i) {
+    if (i > 0) out << ",";
+    out << game.player.gemHollowVeins[i];
+  }
+  out << '\n';
   return out.str();
 }
 
@@ -193,6 +206,30 @@ bool deserializeGameState(const std::string& text, GameState& game) {
       }
     } else if (key == "current_layer") {
       game.player.currentLayer = value;
+    } else if (key == "last_gem_hollow_date") {
+      game.player.lastGemHollowDate = value;
+    } else if (key == "gem_hollow_streak") {
+      if (!parseIntValue(value, game.player.gemHollowStreak)) return false;
+    } else if (key == "gem_hollow_swings_remaining") {
+      if (!parseIntValue(value, game.player.gemHollowSwingsRemaining)) return false;
+    } else if (key == "gem_hollow_today_gems") {
+      if (!parseIntValue(value, game.player.gemHollowTodayGems)) return false;
+    } else if (key == "gem_hollow_today_dust") {
+      if (!parseIntValue(value, game.player.gemHollowTodayDust)) return false;
+    } else if (key == "gem_hollow_today_gold") {
+      if (!parseIntValue(value, game.player.gemHollowTodayGold)) return false;
+    } else if (key == "gem_hollow_active") {
+      int active = 0;
+      if (!parseIntValue(value, active)) return false;
+      game.player.gemHollowActive = (active != 0);
+    } else if (key == "gem_hollow_veins") {
+      std::istringstream veinsInput(value);
+      std::string field;
+      while (std::getline(veinsInput, field, ',')) {
+        if (!field.empty()) {
+          game.player.gemHollowVeins.push_back(std::stoi(field));
+        }
+      }
     }
   }
 

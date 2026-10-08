@@ -133,4 +133,20 @@ int countItem(const InventoryState& inventory, const std::string& type, const st
   return it == bucket->end() ? 0 : it->second;
 }
 
+bool insertGem(InventoryState& inventory, GearPiece& piece, const std::string& gemId) {
+  if (gemId.empty() || piece.socketedGems.size() >= static_cast<std::size_t>(piece.sockets) ||
+      !removeItemFromInventory(inventory, "gems", gemId)) {
+    return false;
+  }
+  piece.socketedGems.push_back(gemId);
+  return true;
+}
+
+bool removeGem(InventoryState& inventory, GearPiece& piece, std::size_t socketIndex) {
+  if (socketIndex >= piece.socketedGems.size()) return false;
+  const std::string gemId = piece.socketedGems[socketIndex];
+  piece.socketedGems.erase(piece.socketedGems.begin() + static_cast<std::ptrdiff_t>(socketIndex));
+  return addItemToInventory(inventory, "gems", gemId);
+}
+
 } // namespace ed

@@ -22,6 +22,44 @@ double tierMultiplier(int tier) {
   return std::pow(2.3, std::max(0, tier - 1));
 }
 
+void applyGemStats(PlayerStats& stats, const std::string& gemId) {
+  if (gemId == "amber") ++stats.luck;
+  else if (gemId == "garnet") stats.attackBonusBasisPoints += 200;
+  else if (gemId == "jade") stats.maxHpBonusBasisPoints += 200;
+  else if (gemId == "moonstone") stats.critChanceBasisPoints += 50;
+  else if (gemId == "sapphire") stats.focusBasisPoints += 100;
+  else if (gemId == "bloodstone") stats.lifestealBasisPoints += 100;
+  else if (gemId == "star-ruby") stats.miningPowerBonusPercent += 3.0;
+  else if (gemId == "arcane-opal") stats.xpBonusBasisPoints += 300;
+  else if (gemId == "dragon-eye") {
+    stats.pierce += 2;
+    stats.critDamageBasisPoints += 500;
+  } else if (gemId == "aether-diamond") {
+    stats.miningPowerBonusPercent += 1.5;
+    stats.attackBonusBasisPoints += 150;
+    stats.maxHpBonusBasisPoints += 150;
+    stats.defenseBonusBasisPoints += 150;
+    stats.speedBonusBasisPoints += 150;
+    stats.luckBonusBasisPoints += 150;
+    stats.pierceBonusBasisPoints += 150;
+    stats.critChanceBasisPoints += 15;
+    stats.critDamageBasisPoints += 150;
+    stats.xpBonusBasisPoints += 150;
+    stats.focusBasisPoints += 15;
+  }
+}
+
+void applyEnchantmentStats(PlayerStats& stats, const std::string& enchant) {
+  if (enchant.empty()) return;
+  if (enchant == "mining-power") stats.miningPowerBonusPercent += 3.0;
+  else if (enchant == "crit-chance") stats.critChanceBasisPoints += 200;
+  else if (enchant == "luck") stats.luck += 2;
+  else if (enchant == "max-hp") stats.maxHpBonusBasisPoints += 500;
+  else if (enchant == "attack") stats.attackBonusBasisPoints += 500;
+  else if (enchant == "speed") stats.speed += 2;
+  else if (enchant == "pierce") stats.pierce += 1;
+}
+
 } // namespace
 
 PlayerStats calculatePlayerStats(const GameState& game, const InventoryState& inventory) {
@@ -39,6 +77,7 @@ PlayerStats calculatePlayerStats(const GameState& game, const InventoryState& in
                                                   upgradeMultiplier(*pickaxe)));
     stats.pierce += (pickaxe->tier + 1) / 2;
     stats.critChanceBasisPoints += 500;
+    for (const auto& gem : pickaxe->socketedGems) applyGemStats(stats, gem); applyEnchantmentStats(stats, pickaxe->enchantment);
   }
 
   const GearPiece* helm = equippedPiece(inventory, inventory.equipped.helmId);
@@ -46,6 +85,7 @@ PlayerStats calculatePlayerStats(const GameState& game, const InventoryState& in
     stats.maxHp += static_cast<int>(std::llround(30.0 * tierMultiplier(helm->tier) *
                                                  upgradeMultiplier(*helm)));
     stats.luck += helm->tier;
+    for (const auto& gem : helm->socketedGems) applyGemStats(stats, gem); applyEnchantmentStats(stats, helm->enchantment);
   }
 
   const GearPiece* chest = equippedPiece(inventory, inventory.equipped.chestplateId);
@@ -54,6 +94,7 @@ PlayerStats calculatePlayerStats(const GameState& game, const InventoryState& in
                                                    upgradeMultiplier(*chest)));
     stats.maxHp += static_cast<int>(std::llround(50.0 * tierMultiplier(chest->tier) *
                                                  upgradeMultiplier(*chest)));
+    for (const auto& gem : chest->socketedGems) applyGemStats(stats, gem); applyEnchantmentStats(stats, chest->enchantment);
   }
 
   const GearPiece* gauntlets = equippedPiece(inventory, inventory.equipped.gauntletsId);
@@ -61,6 +102,7 @@ PlayerStats calculatePlayerStats(const GameState& game, const InventoryState& in
     stats.attack += static_cast<int>(std::llround(4.0 * tierMultiplier(gauntlets->tier) *
                                                   upgradeMultiplier(*gauntlets)));
     stats.critChanceBasisPoints += 200;
+    for (const auto& gem : gauntlets->socketedGems) applyGemStats(stats, gem); applyEnchantmentStats(stats, gauntlets->enchantment);
   }
 
   const GearPiece* boots = equippedPiece(inventory, inventory.equipped.bootsId);
@@ -68,6 +110,7 @@ PlayerStats calculatePlayerStats(const GameState& game, const InventoryState& in
     stats.speed += static_cast<int>(std::llround(1.5 * boots->tier));
     stats.maxHp += static_cast<int>(std::llround(15.0 * tierMultiplier(boots->tier) *
                                                  upgradeMultiplier(*boots)));
+    for (const auto& gem : boots->socketedGems) applyGemStats(stats, gem); applyEnchantmentStats(stats, boots->enchantment);
   }
 
   const GearPiece* amulet = equippedPiece(inventory, inventory.equipped.amuletId);
@@ -76,9 +119,16 @@ PlayerStats calculatePlayerStats(const GameState& game, const InventoryState& in
                                                 upgradeMultiplier(*amulet)));
     stats.xpBonusBasisPoints += 300;
     stats.critDamageBasisPoints += 500;
+    for (const auto& gem : amulet->socketedGems) applyGemStats(stats, gem); applyEnchantmentStats(stats, amulet->enchantment);
   }
 
   stats.miningPowerBonusPercent += game.player.level * 1.5;
+  stats.attack += static_cast<int>(std::llround(stats.attack * stats.attackBonusBasisPoints / 10000.0));
+  stats.maxHp += static_cast<int>(std::llround(stats.maxHp * stats.maxHpBonusBasisPoints / 10000.0));
+  stats.defense += static_cast<int>(std::llround(stats.defense * stats.defenseBonusBasisPoints / 10000.0));
+  stats.speed += static_cast<int>(std::llround(stats.speed * stats.speedBonusBasisPoints / 10000.0));
+  stats.luck += static_cast<int>(std::llround(stats.luck * stats.luckBonusBasisPoints / 10000.0));
+  stats.pierce += static_cast<int>(std::llround(stats.pierce * stats.pierceBonusBasisPoints / 10000.0));
   return stats;
 }
 

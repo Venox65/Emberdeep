@@ -1,6 +1,8 @@
 #pragma once
 
 #include <string>
+#include "ed/pcg.hpp"
+
 #include <vector>
 
 #include "ed/game_state.hpp"
@@ -22,6 +24,10 @@ struct CraftRecipe {
 std::vector<CraftRecipe> defaultCraftRecipes(int maxTier = 10);
 bool smeltOre(InventoryState& inventory, const std::string& oreId, int batches);
 bool craftGear(GameState& game, InventoryState& inventory, const CraftRecipe& recipe);
+bool enchantGearPiece(GameState& game, InventoryState& inventory, const std::string& itemId, Pcg32& rng);
+int enchantDustCost(const GearPiece& piece);
+int enchantGoldCost(const GearPiece& piece);
+
 bool upgradeGear(GameState& game, GearPiece& piece);
 int upgradeGoldCost(const GearPiece& piece);
 

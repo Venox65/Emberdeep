@@ -40,11 +40,15 @@ struct CinderDanceState {
   bool failed = false;
   bool gauntletMode = false;
   float duration = 75.0F;
+  int feedback = 0;
+  int feedbackLane = 0;
+  float feedbackTimer = 0.0F;
   std::vector<CinderNote> chart;
 };
 
 CinderDanceState startCinderDance(std::uint64_t seed = 0xC1DEULL,
-                                  float duration = 75.0F);
+                                  float duration = 75.0F,
+                                  int noteCount = 110);
 void updateCinderDance(CinderDanceState& state, float deltaSeconds);
 int judgeCinderDance(CinderDanceState& state, int lane, double focus);
 int cinderDanceScore(const CinderDanceState& state, int attack);

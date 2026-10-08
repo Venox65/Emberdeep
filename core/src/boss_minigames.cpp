@@ -87,15 +87,17 @@ int frenzyDigScore(const FrenzyDigState& state, int attack) {
   return static_cast<int>(std::floor(effectiveTaps / kFrenzyDuration));
 }
 
-CinderDanceState startCinderDance(std::uint64_t seed, float duration) {
+CinderDanceState startCinderDance(std::uint64_t seed, float duration, int noteCount) {
   Pcg32 rng(seed);
   CinderDanceState state;
   state.duration = std::max(1.0F, duration);
-  state.chart.reserve(110);
-  for (int index = 0; index < 110; ++index) {
+  const int count = std::max(1, noteCount);
+  state.chart.reserve(static_cast<std::size_t>(count));
+  for (int index = 0; index < count; ++index) {
     CinderNote note;
     note.time = 2.0F + static_cast<float>(index) *
-                              ((state.duration - 5.0F) / 109.0F);
+                              ((state.duration - 5.0F) /
+                               static_cast<float>(std::max(1, count - 1)));
     note.lane = static_cast<int>(rng.nextRange(0, 3));
     state.chart.push_back(note);
   }
@@ -104,9 +106,15 @@ CinderDanceState startCinderDance(std::uint64_t seed, float duration) {
 
 void updateCinderDance(CinderDanceState& state, float deltaSeconds) {
   if (state.finished) return;
-  state.elapsed = std::min(state.duration, state.elapsed + std::max(0.0F, deltaSeconds));
+  const float delta = std::max(0.0F, deltaSeconds);
+  state.elapsed = std::min(state.duration, state.elapsed + delta);
+  state.feedbackTimer = std::max(0.0F, state.feedbackTimer - delta);
+  if (state.feedbackTimer <= 0.0F) state.feedback = 0;
   while (state.nextNote < state.chart.size() &&
          state.elapsed - state.chart[state.nextNote].time > 0.1F) {
+    state.feedback = -1;
+    state.feedbackLane = state.chart[state.nextNote].lane;
+    state.feedbackTimer = 0.55F;
     state.chart[state.nextNote].judged = true;
     ++state.nextNote;
     ++state.misses;
@@ -128,22 +136,27 @@ void updateCinderDance(CinderDanceState& state, float deltaSeconds) {
 
 int judgeCinderDance(CinderDanceState& state, int lane, double focus) {
   if (state.finished || lane < 0 || lane > 3) return 0;
+  state.feedbackLane = lane;
+  state.feedbackTimer = 0.55F;
   const float window = 0.1F * focusMultiplier(focus);
   std::size_t candidate = state.nextNote;
   while (candidate < state.chart.size() && state.chart[candidate].judged) ++candidate;
   if (candidate >= state.chart.size() || state.chart[candidate].lane != lane ||
       std::abs(state.elapsed - state.chart[candidate].time) > window) {
+    state.feedback = -1;
     return 0;
   }
   const float distance = std::abs(state.elapsed - state.chart[candidate].time);
   state.chart[candidate].judged = true;
   state.nextNote = candidate + 1;
   if (distance <= 0.045F * focusMultiplier(focus)) {
+    state.feedback = 2;
     ++state.perfectHits;
     state.groove = std::min(100, state.groove + 2);
     return 2;
   }
   ++state.goodHits;
+  state.feedback = 1;
   state.groove = std::min(100, state.groove + 2);
   return 1;
 }
@@ -295,7 +308,7 @@ void updateParryDuel(ParryDuelState& state, float deltaSeconds, Pcg32& rng) {
   state.elapsed += std::max(0.0F, deltaSeconds);
   const float window = std::max(0.35F, 0.6F - 0.25F * state.attack / 23.0F);
   if (state.elapsed >= window) {
-    ++state.heartsLost;
+    if (!state.feint) ++state.heartsLost;
     ++state.attack;
     state.elapsed = 0.0F;
     if (state.heartsLost >= 3 || state.attack >= state.maxAttacks) {
@@ -599,12 +612,16 @@ void updateSoulDodge(SoulDodgeState& state, float deltaSeconds, float moveX,
       hazard.telegraph = kind == SoulHazardKind::Laser ? 0.8F : 0.0F;
       hazard.angle = static_cast<float>(state.patternState % 628U) / 100.0F +
                      static_cast<float>(index) * 0.45F;
+      const float spread = count > 1
+                               ? (static_cast<float>(index) / static_cast<float>(count - 1) - 0.5F) *
+                                     0.24F
+                               : 0.0F;
       hazard.x = kind == SoulHazardKind::Rain
                      ? 0.08F + static_cast<float>(index) / static_cast<float>(count - 1) * 0.84F
-                     : centerX;
+                     : std::clamp(centerX + spread, 0.06F, 0.94F);
       hazard.y = kind == SoulHazardKind::Rain
                      ? -0.08F
-                     : centerY;
+                     : std::clamp(centerY + spread * 0.6F, 0.06F, 0.94F);
       hazard.radius = kind == SoulHazardKind::Ring
                           ? 0.18F
                           : (kind == SoulHazardKind::Spiral ? 0.02F : 0.0F);
@@ -678,7 +695,7 @@ void updateCrownStrike(CrownStrikeState& state, float deltaSeconds) {
 
 bool strikeCrown(CrownStrikeState& state, float focus) {
   if (state.finished) return false;
-  const float zone = 0.05F * (1.0F + std::clamp(focus, 0.0F, 0.25F));
+  const float zone = 0.10F * (1.0F + std::clamp(focus, 0.0F, 0.25F));
   const bool hit = std::abs(state.needle - 0.5F) <= zone;
   if (hit) ++state.hits;
   else ++state.misses;

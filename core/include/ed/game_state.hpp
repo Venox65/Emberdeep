@@ -27,6 +27,16 @@ struct PlayerState {
   int goldEarnedThisRun = 0;
   int pickaxeTier = 1;
   std::string currentLayer = "ashen-warrens";
+  std::string lastGemHollowDate = "";
+  int gemHollowStreak = 0;
+  int gemHollowSwingsRemaining = 0;
+  int gemHollowTodayGems = 0;
+  int gemHollowTodayDust = 0;
+  int gemHollowTodayGold = 0;
+  bool gemHollowActive = false;
+  std::vector<int> gemHollowVeins;
+
+
 };
 
 struct GameState {

@@ -22,6 +22,10 @@ struct GearPiece {
   int upgradeLevel = 0;
   int sockets = 0;
   bool legendary = false;
+  std::vector<std::string> socketedGems;
+  std::string enchantment;
+  int enchantRerolls = 0;
+
 };
 
 struct GearSet {
@@ -53,5 +57,7 @@ bool removeItemFromInventory(InventoryState& inventory,
 bool equipGear(InventoryState& inventory, const GearPiece& piece);
 int gearSocketCount(int tier, bool legendary = false);
 int countItem(const InventoryState& inventory, const std::string& type, const std::string& itemId);
+bool insertGem(InventoryState& inventory, GearPiece& piece, const std::string& gemId);
+bool removeGem(InventoryState& inventory, GearPiece& piece, std::size_t socketIndex);
 
 } // namespace ed
