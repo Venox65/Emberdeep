@@ -1338,38 +1338,96 @@ void drawEnchantingScreen(AppState& app) {
     return;
   }
   
-  DrawText("Select an item from your inventory to enchant.", 50, 150, 18, RAYWHITE);
-  
-  int y = 200;
-  for (size_t i = 0; i < app.inventory.gear.size(); ++i) {
-    auto& piece = app.inventory.gear[i];
-    std::string text = piece.name + " (Lv " + std::to_string(piece.tier) + ") - " + piece.slot;
-    if (!piece.enchantment.empty()) text += " [*]";
-    
-    Color c = (app.selectedGear == i) ? Color{255, 238, 180, 255} : RAYWHITE;
-    DrawText(text.c_str(), 100, y, 18, c);
-    y += 30;
+  if (app.inventory.gear.empty()) {
+    DrawText("No gear in inventory.", 400, 300, 20, Color{174, 174, 187, 255});
+    return;
   }
   
-  DrawText("W / S select gear | N enchant selected", 50, y + 40, 18, Color{174, 174, 187, 255});
+  // Left panel: gear list
+  DrawRectangle(50, 145, 530, 530, Color{28, 27, 39, 200});
+  DrawText("Select gear:", 70, 158, 16, Color{174, 174, 187, 255});
   
-  if (app.selectedGear < app.inventory.gear.size()) {
-    auto& piece = app.inventory.gear[app.selectedGear];
+  int listY = 185;
+  for (size_t i = 0; i < app.inventory.gear.size(); ++i) {
+    const auto& piece = app.inventory.gear[i];
+    const bool selected = app.selectedGear == static_cast<int>(i);
+    Color bg = selected ? Color{112, 76, 45, 255} : Color{48, 47, 61, 255};
+    DrawRectangleRounded({65, static_cast<float>(listY - 4), 505, 34}, 0.15F, 4, bg);
+    std::string label = piece.name + " +" + std::to_string(piece.upgradeLevel) + "  [" + piece.slot + "]";
+    if (!piece.enchantment.empty()) label += "  *" + piece.enchantment + "*";
+    DrawText(label.c_str(), 75, listY + 4, 15, selected ? RAYWHITE : Color{200, 200, 210, 255});
+    
+    // Click to select
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+      Vector2 mouse = GetMousePosition();
+      if (mouse.x >= 65 && mouse.x <= 570 && mouse.y >= listY - 4 && mouse.y <= listY + 30) {
+        app.selectedGear = static_cast<int>(i);
+      }
+    }
+    listY += 42;
+  }
+  DrawText("W / S or click to select", 70, 650, 14, Color{120, 120, 135, 255});
+  
+  // Right panel: detail + enchant button
+  if (app.selectedGear >= 0 && app.selectedGear < static_cast<int>(app.inventory.gear.size())) {
+    const auto& piece = app.inventory.gear[static_cast<size_t>(app.selectedGear)];
     int dustCost = ed::enchantDustCost(piece);
     int goldCost = ed::enchantGoldCost(piece);
+    bool canAfford = app.game.player.arcaneDust >= dustCost && app.game.player.gold >= goldCost;
     
-    DrawRectangle(600, 200, 400, 300, Color{40, 40, 50, 255});
-    DrawText(piece.name.c_str(), 620, 220, 24, RAYWHITE);
-    DrawText(("Cost: " + std::to_string(dustCost) + " Dust | " + std::to_string(goldCost) + " Gold").c_str(), 620, 260, 20, Color{248, 211, 89, 255});
+    DrawRectangle(610, 145, 620, 530, Color{28, 27, 39, 200});
+    DrawText(piece.name.c_str(), 630, 165, 26, RAYWHITE);
+    DrawText(("Slot: " + piece.slot + "   Tier: " + std::to_string(piece.tier) +
+              "   Upgrade: +" + std::to_string(piece.upgradeLevel)).c_str(),
+             630, 200, 16, Color{174, 174, 187, 255});
     
+    // Current enchantment
     if (!piece.enchantment.empty()) {
-      DrawText(("Current Enchantment: " + piece.enchantment).c_str(), 620, 300, 18, Color{150, 255, 150, 255});
+      DrawRectangleRounded({625, 230, 585, 36}, 0.2F, 4, Color{40, 80, 50, 255});
+      DrawText(("Enchantment: " + piece.enchantment).c_str(), 635, 241, 16, Color{150, 255, 150, 255});
     } else {
-      DrawText("No Enchantment", 620, 300, 18, Color{180, 180, 180, 255});
+      DrawRectangleRounded({625, 230, 585, 36}, 0.2F, 4, Color{50, 50, 65, 255});
+      DrawText("No enchantment", 635, 241, 16, Color{150, 150, 165, 255});
     }
     
-    DrawText(("Your Dust: " + std::to_string(app.game.player.arcaneDust)).c_str(), 620, 360, 18, RAYWHITE);
-    DrawText(("Your Gold: " + std::to_string(app.game.player.gold)).c_str(), 620, 390, 18, RAYWHITE);
+    // Sockets
+    DrawText(("Sockets: " + std::to_string(piece.socketedGems.size()) + " / " +
+              std::to_string(piece.sockets)).c_str(), 630, 280, 16, Color{174, 174, 187, 255});
+    
+    // Costs
+    DrawText("Enchant cost:", 630, 320, 18, RAYWHITE);
+    Color dustColor = app.game.player.arcaneDust >= dustCost ? Color{150, 220, 255, 255} : Color{255, 100, 100, 255};
+    Color goldColor = app.game.player.gold >= goldCost ? Color{248, 211, 89, 255} : Color{255, 100, 100, 255};
+    DrawText(("  Arcane Dust: " + std::to_string(dustCost) +
+              "  (have: " + std::to_string(app.game.player.arcaneDust) + ")").c_str(),
+             630, 345, 16, dustColor);
+    DrawText(("  Gold: " + std::to_string(goldCost) +
+              "  (have: " + std::to_string(app.game.player.gold) + ")").c_str(),
+             630, 368, 16, goldColor);
+    
+    if (!piece.enchantment.empty()) {
+      DrawText(("Rerolls: " + std::to_string(piece.enchantRerolls)).c_str(), 630, 400, 16, Color{174, 174, 187, 255});
+    }
+    
+    // Enchant button
+    Color btnColor = canAfford ? Color{112, 76, 45, 255} : Color{60, 55, 70, 255};
+    DrawRectangleRounded({625, 450, 585, 48}, 0.2F, 6, btnColor);
+    drawTextCentered(piece.enchantment.empty() ? "Enchant (N)" : "Re-enchant (N)", 468, 22,
+                     canAfford ? RAYWHITE : Color{120, 115, 130, 255});
+    
+    // Mouse click on enchant button
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+      Vector2 mouse = GetMousePosition();
+      if (mouse.x >= 625 && mouse.x <= 1210 && mouse.y >= 450 && mouse.y <= 498) {
+        if (canAfford) {
+          auto& mpiece = app.inventory.gear[static_cast<size_t>(app.selectedGear)];
+          bool ok = ed::enchantGearPiece(app.game, app.inventory, mpiece.itemId, app.rng);
+          if (ok) setNotice(app, "Enchanted: " + mpiece.enchantment);
+        } else {
+          setNotice(app, "Not enough resources to enchant.");
+        }
+      }
+    }
   }
 }
 
@@ -2046,6 +2104,25 @@ void handleInput(AppState& app) {
         setNotice(app, "Removed gem.");
       } else {
         setNotice(app, "No gems to remove.");
+      }
+    }
+  } else if (app.screen == Screen::Enchanting) {
+    if (!app.inventory.gear.empty()) {
+      if (IsKeyPressed(KEY_W)) {
+        app.selectedGear = std::max(0, app.selectedGear - 1);
+      }
+      if (IsKeyPressed(KEY_S)) {
+        app.selectedGear = std::min(static_cast<int>(app.inventory.gear.size()) - 1,
+                                    app.selectedGear + 1);
+      }
+      if (IsKeyPressed(KEY_N) && app.selectedGear < static_cast<int>(app.inventory.gear.size())) {
+        auto& piece = app.inventory.gear[static_cast<size_t>(app.selectedGear)];
+        bool ok = ed::enchantGearPiece(app.game, app.inventory, piece.itemId, app.rng);
+        if (ok) {
+          setNotice(app, "Enchanted: " + piece.enchantment);
+        } else {
+          setNotice(app, "Not enough resources to enchant.");
+        }
       }
     }
   } else if (app.screen == Screen::Crafting) {
