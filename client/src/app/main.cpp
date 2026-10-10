@@ -114,14 +114,21 @@ struct AppState {
   std::vector<std::string> gemHollowSummaryItems;
   
   bool inDungeonCombat = false;
+  bool dungeonShowResults = false;
   ed::DungeonRunResult dungeonResult;
   std::size_t dungeonLogIndex = 0;
   float dungeonCombatTimer = 0.0F;
   std::int64_t dungeonPlayerHp = 0;
   std::int64_t dungeonPlayerMaxHp = 0;
-  std::int64_t dungeonEnemyHp = 0;
-  std::int64_t dungeonEnemyMaxHp = 0;
-  std::string dungeonEnemyName;
+
+  struct EnemyUiState {
+    int id;
+    std::string name;
+    std::int64_t hp;
+    std::int64_t maxHp;
+  };
+  std::vector<EnemyUiState> dungeonEnemies;
+
   std::vector<std::string> dungeonBattleLog;
 };
 
@@ -498,13 +505,12 @@ void runDungeon(AppState& app) {
       
   app.dungeonResult = result;
   app.inDungeonCombat = true;
+  app.dungeonShowResults = false;
   app.dungeonLogIndex = 0;
   app.dungeonCombatTimer = 0.0F;
   app.dungeonPlayerMaxHp = stats.maxHp;
   app.dungeonPlayerHp = stats.maxHp;
-  app.dungeonEnemyMaxHp = 1; // updated by events
-  app.dungeonEnemyHp = 0;
-  app.dungeonEnemyName = "";
+  app.dungeonEnemies.clear();
   app.dungeonBattleLog.clear();
   app.dungeonBattleLog.push_back("Entered " + zone.name + "!");
   
@@ -1028,17 +1034,45 @@ void drawCampaignScreen(const AppState& app) {
 
 void drawDungeonScreen(AppState& app) {
   if (app.inDungeonCombat) {
+    if (app.dungeonShowResults) {
+      drawTextCentered("DUNGEON RESULTS", 108, 34, Color{224, 187, 106, 255});
+      DrawRectangleRounded({340, 200, 600, 300}, 0.08F, 10, Color{53, 52, 65, 255});
+      
+      if (app.dungeonResult.cleared) {
+        drawTextCentered("Run Cleared!", 230, 30, Color{122, 217, 255, 255});
+      } else {
+        drawTextCentered(("Failed on Floor " + std::to_string(app.dungeonResult.floorsCleared + 1)).c_str(), 230, 30, RED);
+      }
+      
+      DrawText(("Gold Earned: " + std::to_string(app.dungeonResult.gold)).c_str(), 380, 290, 20, RAYWHITE);
+      DrawText(("XP Earned: " + std::to_string(app.dungeonResult.xp)).c_str(), 380, 330, 20, RAYWHITE);
+      DrawText(("Trophies Found: " + std::to_string(app.dungeonResult.trophies)).c_str(), 380, 370, 20, RAYWHITE);
+      DrawText(("Arcane Dust: " + std::to_string(app.dungeonResult.arcaneDust)).c_str(), 380, 410, 20, RAYWHITE);
+      if (app.dungeonResult.gemFound) {
+        DrawText("You found a Gem!", 380, 450, 20, Color{224, 187, 106, 255});
+      }
+      
+      DrawText("Press SPACE, ENTER or ESC to Finish", 440, 600, 20, Color{174, 174, 187, 255});
+      return;
+    }
+
     drawTextCentered("DUNGEON COMBAT", 108, 34, Color{224, 187, 106, 255});
     
-    // Player on left, Enemy on right
-    DrawRectangleRounded({200, 200, 250, 200}, 0.1F, 8, Color{53, 52, 65, 255}); // Player shape
-    DrawText("Player", 280, 420, 20, RAYWHITE);
-    DrawText((std::to_string(app.dungeonPlayerHp) + " / " + std::to_string(app.dungeonPlayerMaxHp)).c_str(), 250, 450, 18, RED);
+    // Player on left
+    DrawRectangleRounded({100, 200, 200, 180}, 0.1F, 8, Color{53, 52, 65, 255}); // Player shape
+    DrawText("Player", 150, 390, 20, RAYWHITE);
+    DrawText((std::to_string(app.dungeonPlayerHp) + " / " + std::to_string(app.dungeonPlayerMaxHp)).c_str(), 140, 420, 18, RED);
 
-    if (app.dungeonEnemyHp > 0) {
-      DrawRectangleRounded({830, 200, 250, 200}, 0.1F, 8, Color{70, 40, 40, 255}); // Enemy shape
-      DrawText(app.dungeonEnemyName.c_str(), 880, 420, 20, RAYWHITE);
-      DrawText((std::to_string(app.dungeonEnemyHp) + " / " + std::to_string(app.dungeonEnemyMaxHp)).c_str(), 880, 450, 18, RED);
+    // Enemies on right
+    int numEnemies = static_cast<int>(app.dungeonEnemies.size());
+    int startX = 1080 - (numEnemies * 220); // right-aligned group
+    for (int i = 0; i < numEnemies; ++i) {
+      auto& e = app.dungeonEnemies[i];
+      if (e.hp > 0) {
+        DrawRectangleRounded({static_cast<float>(startX + i * 220), 200, 180, 180}, 0.1F, 8, Color{70, 40, 40, 255});
+        DrawText(e.name.c_str(), startX + i * 220 + 20, 390, 20, RAYWHITE);
+        DrawText((std::to_string(e.hp) + " / " + std::to_string(e.maxHp)).c_str(), startX + i * 220 + 20, 420, 18, RED);
+      }
     }
     
     // Battle Log
@@ -1050,7 +1084,7 @@ void drawDungeonScreen(AppState& app) {
       logY += 25;
     }
     
-    DrawText("Press SPACE or ESC to Skip / Close", 460, 670, 18, Color{174, 174, 187, 255});
+    DrawText("Press SPACE or ESC to skip floor", 480, 670, 18, Color{174, 174, 187, 255});
     return;
   }
 
@@ -1521,74 +1555,135 @@ void updateEffects(AppState& app, float delta) {
   app.noticeLifetime = std::max(0.0F, app.noticeLifetime - delta);
 
   if (app.inDungeonCombat) {
-    if (IsKeyPressed(KEY_SPACE) || IsKeyPressed(KEY_ESCAPE) || app.dungeonLogIndex >= app.dungeonResult.log.size()) {
-      app.inDungeonCombat = false; // Skip / End
-    } else {
-      app.dungeonCombatTimer += delta;
-      if (app.dungeonCombatTimer >= 0.5F) { // half second per turn
-        app.dungeonCombatTimer = 0.0F;
+    if (app.dungeonShowResults) {
+      if (IsKeyPressed(KEY_SPACE) || IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_ENTER)) {
+        app.inDungeonCombat = false; // Exit results
+        app.dungeonShowResults = false;
+      }
+      return;
+    }
+
+    auto updateEnemyHp = [&](int id, std::int64_t hp) {
+      for (auto& e : app.dungeonEnemies) {
+        if (e.id == id) e.hp = hp;
+      }
+    };
+
+    bool fastForward = false;
+    if (IsKeyPressed(KEY_SPACE) || IsKeyPressed(KEY_ESCAPE)) {
+      fastForward = true;
+    }
+
+    if (fastForward) {
+      // advance to next FloorStart or Clear/Failed
+      while (app.dungeonLogIndex < app.dungeonResult.log.size()) {
         auto& ev = app.dungeonResult.log[app.dungeonLogIndex];
+        app.dungeonLogIndex++;
         
         switch (ev.type) {
           case ed::DungeonEventType::FloorStart:
             app.dungeonBattleLog.push_back("--- Floor " + std::to_string(ev.numData1) + " ---");
-            break;
+            app.dungeonEnemies.clear();
+            return; // stop fast-forward
           case ed::DungeonEventType::EnemyAppear:
-            app.dungeonEnemyName = ev.stringData;
-            app.dungeonEnemyMaxHp = ev.numData1;
-            app.dungeonEnemyHp = ev.numData2;
-            app.dungeonBattleLog.push_back("A wild " + ev.stringData + " appears!");
+            app.dungeonEnemies.push_back({static_cast<int>(ev.numData3), ev.stringData, ev.numData2, ev.numData1});
             break;
           case ed::DungeonEventType::PlayerAttack:
-            app.dungeonEnemyHp = ev.numData2;
-            if (ev.flag) {
-              app.dungeonBattleLog.push_back("CRITICAL! You hit for " + std::to_string(ev.numData1) + "!");
-              app.shake = 0.3F;
-            } else {
-              app.dungeonBattleLog.push_back("You hit for " + std::to_string(ev.numData1) + ".");
-            }
+            updateEnemyHp(static_cast<int>(ev.numData3), ev.numData2);
             break;
           case ed::DungeonEventType::EnemyAttack:
             app.dungeonPlayerHp = ev.numData2;
-            if (ev.flag) {
-              app.dungeonBattleLog.push_back("Frenzied enemy hits you for " + std::to_string(ev.numData1) + "!");
-              app.shake = 0.2F;
-            } else {
-              app.dungeonBattleLog.push_back("Enemy hits you for " + std::to_string(ev.numData1) + ".");
-            }
             break;
           case ed::DungeonEventType::EnemyAbility:
             if (ev.stringData == "heal") {
-              app.dungeonEnemyHp = ev.numData2;
-              app.dungeonBattleLog.push_back(app.dungeonEnemyName + " heals for " + std::to_string(ev.numData1) + ".");
-            } else if (ev.stringData == "poison") {
-              app.dungeonBattleLog.push_back(app.dungeonEnemyName + " applies Poison!");
-            } else if (ev.stringData == "guard") {
-              app.dungeonBattleLog.push_back(app.dungeonEnemyName + " is Guarding!");
-            } else if (ev.stringData == "frenzy") {
-              app.dungeonBattleLog.push_back(app.dungeonEnemyName + " goes into a Frenzy!");
+              updateEnemyHp(static_cast<int>(ev.numData3), ev.numData2);
             }
             break;
           case ed::DungeonEventType::PoisonTick:
             app.dungeonPlayerHp = ev.numData2;
-            app.dungeonBattleLog.push_back("Poison deals " + std::to_string(ev.numData1) + " damage.");
-            break;
-          case ed::DungeonEventType::PlayerDefeated:
-            app.dungeonBattleLog.push_back("You were defeated...");
             break;
           case ed::DungeonEventType::EnemyDefeated:
-            app.dungeonEnemyHp = 0;
-            app.dungeonBattleLog.push_back(ev.stringData + " is defeated! +" + std::to_string(ev.numData1) + " Gold");
+            updateEnemyHp(static_cast<int>(ev.numData3), 0);
             break;
           case ed::DungeonEventType::DungeonClear:
-            app.dungeonBattleLog.push_back("Dungeon Cleared! Total: " + std::to_string(ev.numData1) + "G, " + std::to_string(ev.numData2) + "XP.");
-            if (ev.flag) app.dungeonBattleLog.push_back("Found a Gem!");
-            break;
           case ed::DungeonEventType::DungeonFailed:
-            app.dungeonBattleLog.push_back("Failed on floor " + std::to_string(ev.numData1) + ".");
+            app.dungeonShowResults = true;
+            return;
+          default:
             break;
         }
-        app.dungeonLogIndex++;
+      }
+    } else {
+      if (app.dungeonLogIndex >= app.dungeonResult.log.size()) {
+        app.dungeonShowResults = true;
+      } else {
+        app.dungeonCombatTimer += delta;
+        if (app.dungeonCombatTimer >= 0.5F) { // half second per turn
+          app.dungeonCombatTimer = 0.0F;
+          auto& ev = app.dungeonResult.log[app.dungeonLogIndex];
+          
+          switch (ev.type) {
+            case ed::DungeonEventType::FloorStart:
+              app.dungeonBattleLog.push_back("--- Floor " + std::to_string(ev.numData1) + " ---");
+              app.dungeonEnemies.clear();
+              break;
+            case ed::DungeonEventType::EnemyAppear:
+              app.dungeonEnemies.push_back({static_cast<int>(ev.numData3), ev.stringData, ev.numData2, ev.numData1});
+              app.dungeonBattleLog.push_back("A wild " + ev.stringData + " appears!");
+              break;
+            case ed::DungeonEventType::PlayerAttack:
+              updateEnemyHp(static_cast<int>(ev.numData3), ev.numData2);
+              if (ev.flag) {
+                app.dungeonBattleLog.push_back("CRITICAL! You hit " + ev.stringData + " for " + std::to_string(ev.numData1) + "!");
+                app.shake = 0.3F;
+              } else {
+                app.dungeonBattleLog.push_back("You hit " + ev.stringData + " for " + std::to_string(ev.numData1) + ".");
+              }
+              break;
+            case ed::DungeonEventType::EnemyAttack:
+              app.dungeonPlayerHp = ev.numData2;
+              if (ev.flag) {
+                app.dungeonBattleLog.push_back("Frenzied " + ev.stringData + " hits you for " + std::to_string(ev.numData1) + "!");
+                app.shake = 0.2F;
+              } else {
+                app.dungeonBattleLog.push_back(ev.stringData + " hits you for " + std::to_string(ev.numData1) + ".");
+              }
+              break;
+            case ed::DungeonEventType::EnemyAbility:
+              if (ev.stringData == "heal") {
+                updateEnemyHp(static_cast<int>(ev.numData3), ev.numData2);
+                app.dungeonBattleLog.push_back("Enemy heals for " + std::to_string(ev.numData1) + ".");
+              } else if (ev.stringData == "poison") {
+                app.dungeonBattleLog.push_back("Enemy applies Poison!");
+              } else if (ev.stringData == "guard") {
+                app.dungeonBattleLog.push_back("Enemy is Guarding!");
+              } else if (ev.stringData == "frenzy") {
+                app.dungeonBattleLog.push_back("Enemy goes into a Frenzy!");
+              }
+              break;
+            case ed::DungeonEventType::PoisonTick:
+              app.dungeonPlayerHp = ev.numData2;
+              app.dungeonBattleLog.push_back("Poison deals " + std::to_string(ev.numData1) + " damage.");
+              break;
+            case ed::DungeonEventType::PlayerDefeated:
+              app.dungeonBattleLog.push_back("You were defeated...");
+              break;
+            case ed::DungeonEventType::EnemyDefeated:
+              updateEnemyHp(static_cast<int>(ev.numData3), 0);
+              app.dungeonBattleLog.push_back(ev.stringData + " is defeated! +" + std::to_string(ev.numData1) + " Gold");
+              break;
+            case ed::DungeonEventType::DungeonClear:
+              app.dungeonShowResults = true;
+              app.dungeonBattleLog.push_back("Dungeon Cleared! Total: " + std::to_string(ev.numData1) + "G, " + std::to_string(ev.numData2) + "XP.");
+              if (ev.flag) app.dungeonBattleLog.push_back("Found a Gem!");
+              break;
+            case ed::DungeonEventType::DungeonFailed:
+              app.dungeonShowResults = true;
+              app.dungeonBattleLog.push_back("Failed on floor " + std::to_string(ev.numData1) + ".");
+              break;
+          }
+          app.dungeonLogIndex++;
+        }
       }
     }
   }
