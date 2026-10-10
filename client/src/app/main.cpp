@@ -112,6 +112,17 @@ struct AppState {
   float noticeLifetime = 4.0F;
   bool gemHollowShowSummary = false;
   std::vector<std::string> gemHollowSummaryItems;
+  
+  bool inDungeonCombat = false;
+  ed::DungeonRunResult dungeonResult;
+  std::size_t dungeonLogIndex = 0;
+  float dungeonCombatTimer = 0.0F;
+  std::int64_t dungeonPlayerHp = 0;
+  std::int64_t dungeonPlayerMaxHp = 0;
+  std::int64_t dungeonEnemyHp = 0;
+  std::int64_t dungeonEnemyMaxHp = 0;
+  std::string dungeonEnemyName;
+  std::vector<std::string> dungeonBattleLog;
 };
 
 ed::SaveSnapshot makeSnapshot(const AppState& app) {
@@ -480,20 +491,35 @@ void runDungeon(AppState& app) {
   stats.speed = playerStats.speed;
   stats.critChanceBasisPoints = playerStats.critChanceBasisPoints;
   stats.critDamageBasisPoints = playerStats.critDamageBasisPoints;
+  
+  // Actually, we apply the results instantly and replay visually.
   const auto result =
       ed::simulateDungeonRun(stats, zone, 0xD00DULL + app.game.player.clicks);
-  if (!result.cleared) {
-    setNotice(app, "Dungeon failed on floor " + std::to_string(result.floorsCleared + 1) + ".");
-    return;
+      
+  app.dungeonResult = result;
+  app.inDungeonCombat = true;
+  app.dungeonLogIndex = 0;
+  app.dungeonCombatTimer = 0.0F;
+  app.dungeonPlayerMaxHp = stats.maxHp;
+  app.dungeonPlayerHp = stats.maxHp;
+  app.dungeonEnemyMaxHp = 1; // updated by events
+  app.dungeonEnemyHp = 0;
+  app.dungeonEnemyName = "";
+  app.dungeonBattleLog.clear();
+  app.dungeonBattleLog.push_back("Entered " + zone.name + "!");
+  
+  if (result.cleared) {
+    app.game.player.gold += static_cast<int>(result.gold);
+    app.game.player.goldEarnedThisRun += static_cast<int>(result.gold);
+    ed::applyXp(app.game, result.xp);
+    app.game.player.arcaneDust += result.arcaneDust;
+    ed::addItemToInventory(app.inventory, "trophies",
+                           "zone-" + std::to_string(zone.tier), result.trophies);
+    if (result.gemFound) {
+      // Just give them a random gem for now or maybe gem type is based on tier. 
+      // The old runDungeon didn't actually add the gem?
+    }
   }
-  app.game.player.gold += static_cast<int>(result.gold);
-  app.game.player.goldEarnedThisRun += static_cast<int>(result.gold);
-  ed::applyXp(app.game, result.xp);
-  app.game.player.arcaneDust += result.arcaneDust;
-  ed::addItemToInventory(app.inventory, "trophies",
-                         "zone-" + std::to_string(zone.tier), result.trophies);
-  setNotice(app, "Dungeon clear! +" + std::to_string(result.gold) + " gold, +" +
-                    std::to_string(result.xp) + " XP.");
   app.game.dirty = true;
 }
 
@@ -1000,9 +1026,36 @@ void drawCampaignScreen(const AppState& app) {
   }
 }
 
-void drawDungeonScreen(const AppState& app) {
+void drawDungeonScreen(AppState& app) {
+  if (app.inDungeonCombat) {
+    drawTextCentered("DUNGEON COMBAT", 108, 34, Color{224, 187, 106, 255});
+    
+    // Player on left, Enemy on right
+    DrawRectangleRounded({200, 200, 250, 200}, 0.1F, 8, Color{53, 52, 65, 255}); // Player shape
+    DrawText("Player", 280, 420, 20, RAYWHITE);
+    DrawText((std::to_string(app.dungeonPlayerHp) + " / " + std::to_string(app.dungeonPlayerMaxHp)).c_str(), 250, 450, 18, RED);
+
+    if (app.dungeonEnemyHp > 0) {
+      DrawRectangleRounded({830, 200, 250, 200}, 0.1F, 8, Color{70, 40, 40, 255}); // Enemy shape
+      DrawText(app.dungeonEnemyName.c_str(), 880, 420, 20, RAYWHITE);
+      DrawText((std::to_string(app.dungeonEnemyHp) + " / " + std::to_string(app.dungeonEnemyMaxHp)).c_str(), 880, 450, 18, RED);
+    }
+    
+    // Battle Log
+    DrawRectangleRounded({280, 500, 720, 150}, 0.08F, 10, Color{30, 30, 40, 200});
+    int logY = 510;
+    int startLog = std::max(0, static_cast<int>(app.dungeonBattleLog.size()) - 5);
+    for (std::size_t i = startLog; i < app.dungeonBattleLog.size(); ++i) {
+      DrawText(app.dungeonBattleLog[i].c_str(), 300, logY, 18, RAYWHITE);
+      logY += 25;
+    }
+    
+    DrawText("Press SPACE to Skip / Close", 500, 670, 18, Color{174, 174, 187, 255});
+    return;
+  }
+
   drawTextCentered("DUNGEON", 108, 34, Color{224, 187, 106, 255});
-  DrawText("Select zone with A / D. Press ENTER to simulate a deterministic run.", 30, 155, 17,
+  DrawText("Select zone with A / D. Press ENTER to start run.", 30, 155, 17,
            Color{174, 174, 187, 255});
   const auto& zone = app.zones[static_cast<std::size_t>(app.selectedZone)];
   DrawRectangleRounded({280, 230, 720, 220}, 0.08F, 10, Color{53, 52, 65, 255});
@@ -1466,6 +1519,79 @@ void updateEffects(AppState& app, float delta) {
   app.blockPulse = std::max(0.0F, app.blockPulse - delta);
   app.shake = std::max(0.0F, app.shake - delta);
   app.noticeLifetime = std::max(0.0F, app.noticeLifetime - delta);
+
+  if (app.inDungeonCombat) {
+    if (IsKeyPressed(KEY_SPACE) || IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_ESCAPE) || app.dungeonLogIndex >= app.dungeonResult.log.size()) {
+      app.inDungeonCombat = false; // Skip / End
+    } else {
+      app.dungeonCombatTimer += delta;
+      if (app.dungeonCombatTimer >= 0.5F) { // half second per turn
+        app.dungeonCombatTimer = 0.0F;
+        auto& ev = app.dungeonResult.log[app.dungeonLogIndex];
+        
+        switch (ev.type) {
+          case ed::DungeonEventType::FloorStart:
+            app.dungeonBattleLog.push_back("--- Floor " + std::to_string(ev.numData1) + " ---");
+            break;
+          case ed::DungeonEventType::EnemyAppear:
+            app.dungeonEnemyName = ev.stringData;
+            app.dungeonEnemyMaxHp = ev.numData1;
+            app.dungeonEnemyHp = ev.numData2;
+            app.dungeonBattleLog.push_back("A wild " + ev.stringData + " appears!");
+            break;
+          case ed::DungeonEventType::PlayerAttack:
+            app.dungeonEnemyHp = ev.numData2;
+            if (ev.flag) {
+              app.dungeonBattleLog.push_back("CRITICAL! You hit for " + std::to_string(ev.numData1) + "!");
+              app.shake = 0.3F;
+            } else {
+              app.dungeonBattleLog.push_back("You hit for " + std::to_string(ev.numData1) + ".");
+            }
+            break;
+          case ed::DungeonEventType::EnemyAttack:
+            app.dungeonPlayerHp = ev.numData2;
+            if (ev.flag) {
+              app.dungeonBattleLog.push_back("Frenzied enemy hits you for " + std::to_string(ev.numData1) + "!");
+              app.shake = 0.2F;
+            } else {
+              app.dungeonBattleLog.push_back("Enemy hits you for " + std::to_string(ev.numData1) + ".");
+            }
+            break;
+          case ed::DungeonEventType::EnemyAbility:
+            if (ev.stringData == "heal") {
+              app.dungeonEnemyHp = ev.numData2;
+              app.dungeonBattleLog.push_back(app.dungeonEnemyName + " heals for " + std::to_string(ev.numData1) + ".");
+            } else if (ev.stringData == "poison") {
+              app.dungeonBattleLog.push_back(app.dungeonEnemyName + " applies Poison!");
+            } else if (ev.stringData == "guard") {
+              app.dungeonBattleLog.push_back(app.dungeonEnemyName + " is Guarding!");
+            } else if (ev.stringData == "frenzy") {
+              app.dungeonBattleLog.push_back(app.dungeonEnemyName + " goes into a Frenzy!");
+            }
+            break;
+          case ed::DungeonEventType::PoisonTick:
+            app.dungeonPlayerHp = ev.numData2;
+            app.dungeonBattleLog.push_back("Poison deals " + std::to_string(ev.numData1) + " damage.");
+            break;
+          case ed::DungeonEventType::PlayerDefeated:
+            app.dungeonBattleLog.push_back("You were defeated...");
+            break;
+          case ed::DungeonEventType::EnemyDefeated:
+            app.dungeonEnemyHp = 0;
+            app.dungeonBattleLog.push_back(ev.stringData + " is defeated! +" + std::to_string(ev.numData1) + " Gold");
+            break;
+          case ed::DungeonEventType::DungeonClear:
+            app.dungeonBattleLog.push_back("Dungeon Cleared! Total: " + std::to_string(ev.numData1) + "G, " + std::to_string(ev.numData2) + "XP.");
+            if (ev.flag) app.dungeonBattleLog.push_back("Found a Gem!");
+            break;
+          case ed::DungeonEventType::DungeonFailed:
+            app.dungeonBattleLog.push_back("Failed on floor " + std::to_string(ev.numData1) + ".");
+            break;
+        }
+        app.dungeonLogIndex++;
+      }
+    }
+  }
   if (app.screen == Screen::Campaign && app.campaignAttempt) {
     const auto challenge = app.bosses[static_cast<std::size_t>(app.selectedBoss)].challenge;
     if (challenge == ed::BossChallenge::FrenzyDig) {
@@ -2137,6 +2263,7 @@ void handleInput(AppState& app) {
       setNotice(app, "Boss attempt abandoned.");
     }
   } else if (app.screen == Screen::Dungeon) {
+    if (app.inDungeonCombat) return; // Inputs handled by updateEffects or skipped
     if (IsKeyPressed(KEY_A)) {
       const int nextZone = std::max(0, app.selectedZone - 1);
       if (nextZone != app.selectedZone && !dungeonUnlocked(app, nextZone)) {

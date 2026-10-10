@@ -86,6 +86,7 @@ DungeonRunResult simulateDungeonRun(const DungeonPlayerStats& player,
   const double tier = static_cast<double>(zone.tier);
 
   for (int floor = 1; floor <= 5; ++floor) {
+    result.log.push_back({DungeonEventType::FloorStart, "", floor, 0, 0, false});
     const bool miniBossFloor = floor == 5;
     const int enemyCount = miniBossFloor ? 1 : static_cast<int>(rng.nextRange(1, 3));
     for (int enemyIndex = 0; enemyIndex < enemyCount; ++enemyIndex) {
@@ -94,7 +95,8 @@ DungeonRunResult simulateDungeonRun(const DungeonPlayerStats& player,
                               : zone.enemies[rng.nextRange(0, static_cast<std::uint32_t>(zone.enemies.size() - 1))];
       const double floorMultiplier = 1.0 + 0.15 * static_cast<double>(floor - 1);
       const double bossMultiplier = miniBossFloor ? 3.0 : 1.0;
-      std::int64_t enemyHp = scaledValue(40.0 * std::pow(2.4, tier - 1) * floorMultiplier, bossMultiplier);
+      const std::int64_t enemyMaxHp = scaledValue(40.0 * std::pow(2.4, tier - 1) * floorMultiplier, bossMultiplier);
+      std::int64_t enemyHp = enemyMaxHp;
       const std::int64_t enemyAttack =
           scaledValue(6.0 * std::pow(2.2, tier - 1) * (1.0 + 0.10 * (floor - 1)),
                       miniBossFloor ? 1.5 : 1.0);
@@ -108,16 +110,31 @@ DungeonRunResult simulateDungeonRun(const DungeonPlayerStats& player,
       int frenzyRounds = 0;
       bool guarded = false;
 
+      result.log.push_back({DungeonEventType::EnemyAppear, enemy.name, enemyMaxHp, enemyHp, 0, miniBossFloor});
+
       while (enemyHp > 0 && playerHp > 0 && result.rounds < 500) {
         ++result.rounds;
-        if (player.speed >= enemySpeed) {
-          auto damage = attackDamage(player.attack, enemyDefense, rng, player.critChanceBasisPoints,
-                                     player.critDamageBasisPoints);
+        
+        auto playerAttackTurn = [&]() {
+          const int variance = static_cast<int>(rng.nextRange(90, 110));
+          std::int64_t damage = std::max<std::int64_t>(1, player.attack * variance / 100);
+          bool crit = false;
+          if (rng.nextRange(0, 9999) < static_cast<std::uint32_t>(std::clamp(player.critChanceBasisPoints, 0, 10000))) {
+            damage = damage * std::max(10000, player.critDamageBasisPoints) / 10000;
+            crit = true;
+          }
+          damage = std::max<std::int64_t>(1, damage * 100 / (100 + std::max<std::int64_t>(0, enemyDefense)));
+          
           if (guarded) {
             damage /= 2;
             guarded = false;
           }
-          enemyHp -= std::max<std::int64_t>(1, damage);
+          enemyHp -= damage;
+          result.log.push_back({DungeonEventType::PlayerAttack, "", damage, std::max<std::int64_t>(0, enemyHp), 0, crit});
+        };
+
+        if (player.speed >= enemySpeed) {
+          playerAttackTurn();
         }
         if (enemyHp <= 0) {
           break;
@@ -126,47 +143,59 @@ DungeonRunResult simulateDungeonRun(const DungeonPlayerStats& player,
         if (abilityCooldown == 0 && rng.nextRange(0, 99) < 20) {
           abilityCooldown = 3;
           if (enemy.ability == "heal") {
-            enemyHp += std::max<std::int64_t>(1, enemyHp / 6);
+            std::int64_t healAmt = std::max<std::int64_t>(1, enemyMaxHp / 6);
+            enemyHp = std::min(enemyMaxHp, enemyHp + healAmt);
+            result.log.push_back({DungeonEventType::EnemyAbility, "heal", healAmt, enemyHp, 0, false});
           } else if (enemy.ability == "poison") {
             poisonRounds = 3;
+            result.log.push_back({DungeonEventType::EnemyAbility, "poison", 0, 0, 0, false});
           } else if (enemy.ability == "guard") {
             guarded = true;
+            result.log.push_back({DungeonEventType::EnemyAbility, "guard", 0, 0, 0, false});
           } else if (enemy.ability == "frenzy") {
             frenzyRounds = 2;
+            result.log.push_back({DungeonEventType::EnemyAbility, "frenzy", 0, 0, 0, false});
           }
-        } else if (abilityCooldown > 0) {
-          --abilityCooldown;
+        } else {
+          if (abilityCooldown > 0) --abilityCooldown;
+          
+          const std::int64_t currentEnemyAttack =
+              frenzyRounds > 0 ? enemyAttack * 130 / 100 : enemyAttack;
+          
+          const int variance = static_cast<int>(rng.nextRange(90, 110));
+          std::int64_t dmg = std::max<std::int64_t>(1, currentEnemyAttack * variance / 100);
+          dmg = std::max<std::int64_t>(1, dmg * 100 / (100 + std::max<std::int64_t>(0, player.defense)));
+          playerHp -= dmg;
+          result.log.push_back({DungeonEventType::EnemyAttack, "", dmg, std::max<std::int64_t>(0, playerHp), 0, frenzyRounds > 0});
         }
-
-        if (poisonRounds > 0) {
-          playerHp -= std::max<std::int64_t>(1, player.maxHp / 20);
-          --poisonRounds;
-        }
-        const std::int64_t currentEnemyAttack =
-            frenzyRounds > 0 ? enemyAttack * 130 / 100 : enemyAttack;
-        const std::int64_t incoming =
-            attackDamage(currentEnemyAttack, player.defense, rng, 0, 10000);
-        playerHp -= incoming;
+        
         if (frenzyRounds > 0) {
           --frenzyRounds;
         }
+
+        if (poisonRounds > 0) {
+          std::int64_t pDmg = std::max<std::int64_t>(1, player.maxHp / 20);
+          playerHp -= pDmg;
+          --poisonRounds;
+          result.log.push_back({DungeonEventType::PoisonTick, "", pDmg, std::max<std::int64_t>(0, playerHp), 0, false});
+        }
+
         if (playerHp <= 0) {
           break;
         }
+        
         if (player.speed < enemySpeed) {
-          auto damage = attackDamage(player.attack, enemyDefense, rng, player.critChanceBasisPoints,
-                                     player.critDamageBasisPoints);
-          if (guarded) {
-            damage /= 2;
-            guarded = false;
-          }
-          enemyHp -= std::max<std::int64_t>(1, damage);
+          playerAttackTurn();
         }
       }
 
       if (playerHp <= 0 || result.rounds >= 500) {
+        result.log.push_back({DungeonEventType::PlayerDefeated, "", 0, 0, 0, false});
+        result.log.push_back({DungeonEventType::DungeonFailed, "", floor, 0, 0, false});
         return result;
       }
+      
+      result.log.push_back({DungeonEventType::EnemyDefeated, enemy.name, enemyGold, 0, 0, false});
       result.gold += enemyGold;
       result.xp += static_cast<int>(enemyGold / 2);
     }
@@ -178,7 +207,9 @@ DungeonRunResult simulateDungeonRun(const DungeonPlayerStats& player,
   result.gold += result.gold * 3;
   result.gemFound = rng.nextRange(0, 99) < 5;
   result.arcaneDust = rng.nextRange(0, 99) < 15 ? static_cast<int>(rng.nextRange(1, 3)) : 0;
+  result.log.push_back({DungeonEventType::DungeonClear, "", result.gold, result.xp, result.trophies, result.gemFound});
   return result;
 }
+
 
 } // namespace ed

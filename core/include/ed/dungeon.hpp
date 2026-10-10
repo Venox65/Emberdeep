@@ -30,6 +30,29 @@ struct DungeonPlayerStats {
   int critDamageBasisPoints = 15000;
 };
 
+
+enum class DungeonEventType {
+  FloorStart,
+  EnemyAppear,
+  PlayerAttack,
+  EnemyAttack,
+  EnemyAbility,
+  PlayerDefeated,
+  EnemyDefeated,
+  PoisonTick,
+  DungeonClear,
+  DungeonFailed
+};
+
+struct DungeonCombatEvent {
+  DungeonEventType type;
+  std::string stringData; 
+  std::int64_t numData1 = 0; // e.g. damage
+  std::int64_t numData2 = 0; // e.g. current hp
+  std::int64_t numData3 = 0; // e.g. max hp
+  bool flag = false;         // e.g. crit
+};
+
 struct DungeonRunResult {
   bool cleared = false;
   int floorsCleared = 0;
@@ -39,7 +62,9 @@ struct DungeonRunResult {
   int arcaneDust = 0;
   bool gemFound = false;
   int rounds = 0;
+  std::vector<DungeonCombatEvent> log;
 };
+
 
 std::vector<DungeonZoneDef> defaultDungeonZones();
 DungeonRunResult simulateDungeonRun(const DungeonPlayerStats& player,
