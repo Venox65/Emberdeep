@@ -1,6 +1,5 @@
 #include "ed/save.hpp"
 #include "ed/stats.hpp"
-#include "ed/cloud.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -89,15 +88,4 @@ TEST_CASE("save backend writes and reads atomically") {
   std::filesystem::remove(path);
 }
 
-TEST_CASE("relative account profiles can be written") {
-  const auto path = std::filesystem::path("emberdeep-profile-test.tmp");
-  ed::AccountProfile original{"account", "player", "token"};
-  REQUIRE(ed::writeAccountProfile(path, original));
 
-  ed::AccountProfile restored;
-  REQUIRE(ed::readAccountProfile(path, restored));
-  REQUIRE(restored.mode == original.mode);
-  REQUIRE(restored.username == original.username);
-  REQUIRE(restored.token == original.token);
-  std::filesystem::remove(path);
-}

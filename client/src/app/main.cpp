@@ -19,7 +19,6 @@
 
 #include "ed/campaign.hpp"
 #include "ed/boss_minigames.hpp"
-#include "ed/cloud.hpp"
 #include "ed/crafting.hpp"
 #include "ed/data_model.hpp"
 #include "ed/dungeon.hpp"
@@ -76,15 +75,6 @@ struct AppState {
   ed::CampaignState campaign = ed::createCampaignState(10);
   std::filesystem::path savePath = "emberdeep.sav";
   std::filesystem::path profilePath = "emberdeep.profile";
-  ed::AccountProfile account;
-  bool needsAccountChoice = true;
-  bool accountForm = false;
-  bool authUsernameActive = true;
-  bool authSubmitting = false;
-  std::string authUsername;
-  std::string authPassword;
-  std::string backendHost = "127.0.0.1";
-  int backendPort = 8080;
   std::chrono::steady_clock::time_point lastAutosave = std::chrono::steady_clock::now();
   std::mutex saveMutex;
   std::condition_variable saveCondition;
@@ -133,23 +123,10 @@ void spawnBlock(AppState& app);
 void stopSaveWorker(AppState& app);
 void loadSave(AppState& app);
 
-std::string safeAccountId(const std::string& value) {
-  std::string result;
-  for (const unsigned char character : value) {
-    if (std::isalnum(character) || character == '-' || character == '_') {
-      result.push_back(static_cast<char>(character));
-    } else {
-      result.push_back('_');
-    }
-  }
-  return result.empty() ? "guest" : result;
-}
+
 
 void configureAccountStorage(AppState& app) {
-  const std::string accountId = app.account.mode == "account"
-                                    ? app.account.username
-                                    : "guest";
-  app.savePath = "emberdeep-" + safeAccountId(accountId) + ".sav";
+  app.savePath = "emberdeep-admin.sav";
 }
 
 void requestSave(AppState& app) {
@@ -165,16 +142,6 @@ void saveNow(AppState& app) {
   const auto snapshot = makeSnapshot(app);
   if (!ed::writeSaveAtomic(app.savePath, snapshot)) {
     setNotice(app, "Save failed: local save could not be written.");
-    return;
-  }
-  if (app.account.mode == "account" && !app.account.token.empty()) {
-    const auto result = ed::cloudSave(app.backendHost, app.backendPort, app.account.token, snapshot);
-    if (!result.ok) {
-      setNotice(app, "Local save stored; cloud sync failed: " + result.error);
-      return;
-    }
-    setNotice(app, "Save stored locally and synced to the cloud.");
-    app.game.dirty = false;
     return;
   }
   setNotice(app, "Local save stored.");
@@ -197,149 +164,20 @@ void startSaveWorker(AppState& app) {
       }
       if (snapshot.has_value()) {
         ed::writeSaveAtomic(app.savePath, *snapshot);
-        if (app.account.mode == "account" && !app.account.token.empty()) {
-          const auto result = ed::cloudSave(app.backendHost, app.backendPort, app.account.token, *snapshot);
-          if (!result.ok) app.notice = "Local save is safe; cloud sync failed.";
-        }
       }
     }
   });
 }
 
-void loadCloudSave(AppState& app) {
-      if (app.account.mode != "account" || app.account.token.empty()) return;
-      const auto result = ed::cloudLoad(app.backendHost, app.backendPort, app.account.token);
-      ed::SaveSnapshot snapshot;
-      if (result.ok && ed::decodeCloudSnapshot(result.body, snapshot)) {
-        app.game = snapshot.game;
-        app.inventory = snapshot.inventory;
-        app.campaign = snapshot.campaign;
-        ed::writeSaveAtomic(app.savePath, snapshot);
-        app.notice = "Cloud save loaded.";
-      } else if (result.status == 404) {
-        app.notice = "No cloud save yet; local progress will be uploaded.";
-      } else if (!result.ok) {
-        app.notice = "Backend unavailable; continuing with local save.";
-      }
-    }
 
-void initializeAccount(AppState& app) {
-      if (ed::readAccountProfile(app.profilePath, app.account)) {
-        app.needsAccountChoice = false;
-        configureAccountStorage(app);
-        return;
-      }
-      configureAccountStorage(app);
-      app.needsAccountChoice = true;
-    }
 
-void drawAccountPrompt(const AppState& app) {
-      DrawText("EMBERDEEP", 475, 105, 42, Color{224, 187, 106, 255});
-      DrawText("Choose how to keep your progress", 410, 170, 22, Color{220, 214, 190, 255});
-      DrawRectangleRounded({245, 245, 350, 150}, 0.08F, 8, Color{52, 52, 67, 255});
-      DrawRectangleRounded({685, 245, 350, 150}, 0.08F, 8, Color{52, 52, 67, 255});
-      DrawText("PLAY AS GUEST", 315, 280, 25, Color{129, 214, 241, 255});
-      DrawText("Local save only", 330, 325, 18, RAYWHITE);
-      DrawText("Press G", 385, 355, 18, Color{174, 174, 187, 255});
-      DrawText("SIGN IN / CREATE", 730, 280, 25, Color{224, 187, 106, 255});
-      DrawText("Cloud + local save", 765, 325, 18, RAYWHITE);
-      DrawText("Press S", 825, 355, 18, Color{174, 174, 187, 255});
-    }
 
-void drawAuthForm(const AppState& app) {
-      DrawText("SIGN IN OR CREATE ACCOUNT", 350, 105, 32, Color{224, 187, 106, 255});
-      DrawText("Existing usernames sign in; new usernames are created automatically.", 270, 160, 17,
-               Color{174, 174, 187, 255});
-      DrawText("Username (3+ characters)", 300, 235, 19, Color{220, 214, 190, 255});
-      DrawRectangleLines(300, 265, 680, 48, app.authUsernameActive ? Color{224, 187, 106, 255} : GRAY);
-      DrawText(app.authUsername.c_str(), 315, 279, 20, RAYWHITE);
-      DrawText("Password (8+ characters)", 300, 345, 19, Color{220, 214, 190, 255});
-      DrawRectangleLines(300, 375, 680, 48, !app.authUsernameActive ? Color{224, 187, 106, 255} : GRAY);
-      DrawText(std::string(app.authPassword.size(), '*').c_str(), 315, 389, 20, RAYWHITE);
-      DrawText(app.authSubmitting ? "Contacting backend..." :
-                                  "TAB switches field   ENTER submits   ESC returns",
-               300, 485, 17,
-               Color{174, 174, 187, 255});
-    }
 
-void handleAccountInput(AppState& app) {
-      if (app.needsAccountChoice) {
-        if (IsKeyPressed(KEY_G)) {
-          app.account = {"guest", {}, {}};
-          configureAccountStorage(app);
-          ed::writeAccountProfile(app.profilePath, app.account);
-          app.needsAccountChoice = false;
-          app.notice = "Guest mode enabled.";
-        }
-        if (IsKeyPressed(KEY_S)) {
-          app.needsAccountChoice = false;
-          app.accountForm = true;
-          app.authUsername.clear();
-          app.authPassword.clear();
-        }
-        return;
-      }
-      if (app.account.mode == "account") return;
-      if (IsKeyPressed(KEY_ESCAPE)) {
-        app.needsAccountChoice = true;
-        app.accountForm = false;
-        app.authUsername.clear();
-        app.authPassword.clear();
-        return;
-      }
-      if (app.authSubmitting) return;
-      if (IsKeyPressed(KEY_TAB)) app.authUsernameActive = !app.authUsernameActive;
-      int character = GetCharPressed();
-      while (character > 0) {
-        if (character >= 32 && character <= 126) {
-          auto& field = app.authUsernameActive ? app.authUsername : app.authPassword;
-          if (field.size() < 64) field.push_back(static_cast<char>(character));
-        }
-        character = GetCharPressed();
-      }
-      if (IsKeyPressed(KEY_BACKSPACE)) {
-        auto& field = app.authUsernameActive ? app.authUsername : app.authPassword;
-        if (!field.empty()) field.pop_back();
-      }
-      if (IsKeyPressed(KEY_ENTER)) {
-        if (app.authUsername.size() < 3 || app.authPassword.size() < 8) {
-          app.notice = "Username needs 3+ characters; password needs 8+ characters.";
-          app.noticeLifetime = 5.0F;
-          return;
-        }
-        app.authSubmitting = true;
-        auto result = ed::cloudLogin(app.backendHost, app.backendPort, app.authUsername, app.authPassword);
-        if (!result.ok && result.status == 401) {
-          const auto registration =
-              ed::cloudRegister(app.backendHost, app.backendPort, app.authUsername, app.authPassword);
-          if (registration.ok) result = registration;
-        }
-        const auto token = ed::cloudResponseField(result, "token");
-        if (!token.empty()) {
-          app.account = {"account", app.authUsername, token};
-          if (ed::writeAccountProfile(app.profilePath, app.account)) {
-            configureAccountStorage(app);
-            loadSave(app);
-            if (app.account.mode == "account") {
-              loadCloudSave(app);
-            }
-            app.needsAccountChoice = false;
-            app.accountForm = false;
-            app.authSubmitting = false;
-            app.notice = "Signed in. Main game loaded.";
-            app.noticeLifetime = 5.0F;
-          } else {
-            app.authSubmitting = false;
-            app.notice = "Signed in, but the account profile could not be saved.";
-            app.noticeLifetime = 5.0F;
-          }
-        } else {
-          app.authSubmitting = false;
-          app.notice = result.error.empty() ? "Sign-in failed. Check your credentials." : result.error;
-          app.noticeLifetime = 5.0F;
-        }
-      }
-}
+
+
+
+
+
 
 void stopSaveWorker(AppState& app) {
   requestSave(app);
@@ -495,28 +333,13 @@ std::string dungeonLockReason(const AppState& app, int zoneIndex) {
                     : zone.name + " is not available.";
 }
 
-void resetToAccountChoice(AppState& app) {
-  app.game = ed::GameState{};
-  app.inventory = ed::InventoryState{};
-  app.campaign = ed::createCampaignState(app.bosses.size());
-  app.account = ed::AccountProfile{};
-  app.needsAccountChoice = true;
-  app.accountForm = false;
-  app.authSubmitting = false;
-  app.authUsername.clear();
-  app.authPassword.clear();
-  app.screen = Screen::Mine;
-  app.layerIndex = 0;
-  configureAccountStorage(app);
-  spawnBlock(app);
-}
+
 
 void signOut(AppState& app) {
   stopSaveWorker(app);
   std::error_code error;
   std::filesystem::remove(app.profilePath, error);
-  resetToAccountChoice(app);
-  startSaveWorker(app);
+startSaveWorker(app);
   setNotice(app, "Signed out. Local account saves were kept.");
 }
 
@@ -2349,12 +2172,9 @@ int main() {
   SetExitKey(KEY_NULL);
 
   AppState app;
-  initializeAccount(app);
-  if (app.needsAccountChoice || app.accountForm) {
-    app.noticeLifetime = 0.0F;
-  }
+  configureAccountStorage(app);
+
   loadSave(app);
-  loadCloudSave(app);
   for (std::size_t i = 0; i < app.layers.size(); ++i) {
     if (app.layers[i].id == app.game.player.currentLayer &&
         ed::canUnlockLayer(app.game, app.layers[i])) {
@@ -2368,11 +2188,7 @@ int main() {
 
   while (!WindowShouldClose()) {
     const float delta = GetFrameTime();
-    if (app.needsAccountChoice || app.accountForm) {
-      handleAccountInput(app);
-    } else {
-      handleInput(app);
-    }
+    handleInput(app);
     updateEffects(app, delta);
 
     BeginDrawing();
@@ -2380,12 +2196,7 @@ int main() {
     const float offsetX = app.shake > 0.0F ? static_cast<float>(GetRandomValue(-3, 3)) : 0.0F;
     const float offsetY = app.shake > 0.0F ? static_cast<float>(GetRandomValue(-3, 3)) : 0.0F;
     BeginMode2D(Camera2D{{0.0F, 0.0F}, {offsetX, offsetY}, 0.0F, 1.0F});
-    if (app.needsAccountChoice) {
-      drawAccountPrompt(app);
-    } else if (app.accountForm) {
-      drawAuthForm(app);
-    } else {
-      drawTopBar(app);
+    drawTopBar(app);
       switch (app.screen) {
         case Screen::Mine: drawMineScreen(app); break;
         case Screen::Inventory: drawInventoryScreen(app); break;
@@ -2397,7 +2208,6 @@ int main() {
         case Screen::Enchanting: drawEnchantingScreen(app); break;
       }
       drawNavigation(app);
-    }
     for (const auto& particle : app.particles) {
       DrawCircleV(particle.position, 4.0F, Fade(particle.color, particle.lifetime * 2.0F));
     }
@@ -2410,7 +2220,7 @@ int main() {
       DrawRectangle(300, 625, 680, 30, Color{35, 34, 45, 230});
       drawTextCentered(app.notice, 632, 16, Color{234, 229, 202, 255});
     }
-    if (app.screen == Screen::Inventory && !app.needsAccountChoice && !app.accountForm) {
+    if (app.screen == Screen::Inventory) {
       DrawRectangle(0, 685, 1280, 35, Color{28, 27, 39, 200});
       DrawText(("Gear " + std::to_string(app.selectedGear + 1) + "/" +
                 std::to_string(app.inventory.gear.size()) + "   Scroll: W/S").c_str(),

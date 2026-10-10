@@ -45,7 +45,9 @@ std::string serializeSaveSnapshot(const SaveSnapshot& snapshot) {
   out << "equipped.gauntlets=" << snapshot.inventory.equipped.gauntletsId << "\n";
   out << "equipped.boots=" << snapshot.inventory.equipped.bootsId << "\n";
   out << "equipped.amulet=" << snapshot.inventory.equipped.amuletId << "\n";
-  return out.str();
+  std::string data = out.str();
+  auto h = std::hash<std::string>{}(data);
+  return data + "hash=" + std::to_string(h) + "\n";
 }
 
 bool deserializeSaveSnapshot(const std::string& text, SaveSnapshot& snapshot) {
@@ -53,8 +55,17 @@ bool deserializeSaveSnapshot(const std::string& text, SaveSnapshot& snapshot) {
   std::ostringstream gameText;
   std::string line;
   std::vector<std::string> lines;
+  std::string data_without_hash;
+  std::string expected_hash_str;
+
   while (std::getline(input, line)) {
+    if (line.rfind("hash=", 0) == 0) {
+      expected_hash_str = line.substr(5);
+      continue;
+    }
+    data_without_hash += line + "\n";
     lines.push_back(line);
+    
     if (line.rfind("ore.", 0) == 0 || line.rfind("ingot.", 0) == 0 ||
         line.rfind("gem.", 0) == 0 || line.rfind("trophy.", 0) == 0 ||
         line.rfind("campaign", 0) == 0 || line.rfind("gear=", 0) == 0 ||
@@ -63,6 +74,21 @@ bool deserializeSaveSnapshot(const std::string& text, SaveSnapshot& snapshot) {
     }
     gameText << line << "\n";
   }
+
+  // To not break existing saves immediately if they don't have a hash, we can accept empty hash,
+  // but wait, if we want to enforce it we must reject. Let's just reject if hash exists and mismatches.
+  // Actually, to make it strictly offline and stop direct editing, we should require it, 
+  // but allow loading without hash ONLY ONCE, or we can just require it and fix the save file using a script.
+  if (expected_hash_str.empty()) {
+    // If no hash, reject
+    return false;
+  } else {
+    auto actual_hash = std::hash<std::string>{}(data_without_hash);
+    if (std::to_string(actual_hash) != expected_hash_str) {
+      return false; // tampered save
+    }
+  }
+
   if (!deserializeGameState(gameText.str(), snapshot.game)) return false;
 
   for (const auto& savedLine : lines) {

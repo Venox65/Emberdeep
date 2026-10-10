@@ -11,7 +11,6 @@ add_library(emberdeep_core
     src/pcg.cpp
     src/save.cpp
     src/stats.cpp
-    src/cloud.cpp
 )
 
 target_include_directories(emberdeep_core
