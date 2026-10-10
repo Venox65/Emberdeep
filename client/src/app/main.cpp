@@ -1050,7 +1050,7 @@ void drawDungeonScreen(AppState& app) {
       logY += 25;
     }
     
-    DrawText("Press SPACE to Skip / Close", 500, 670, 18, Color{174, 174, 187, 255});
+    DrawText("Press SPACE or ESC to Skip / Close", 460, 670, 18, Color{174, 174, 187, 255});
     return;
   }
 
@@ -1521,7 +1521,7 @@ void updateEffects(AppState& app, float delta) {
   app.noticeLifetime = std::max(0.0F, app.noticeLifetime - delta);
 
   if (app.inDungeonCombat) {
-    if (IsKeyPressed(KEY_SPACE) || IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_ESCAPE) || app.dungeonLogIndex >= app.dungeonResult.log.size()) {
+    if (IsKeyPressed(KEY_SPACE) || IsKeyPressed(KEY_ESCAPE) || app.dungeonLogIndex >= app.dungeonResult.log.size()) {
       app.inDungeonCombat = false; // Skip / End
     } else {
       app.dungeonCombatTimer += delta;
