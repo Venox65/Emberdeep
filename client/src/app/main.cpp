@@ -482,7 +482,7 @@ void startCampaignAttempt(AppState& app) {
     setNotice(app, "Soul Dodge! Survive the pattern waves.");
   } else {
     app.fiveTrials = ed::startFiveTrials();
-    app.cinderDance = ed::startCinderDance(0xF17EULL, 30.0F);
+    app.cinderDance = ed::startCinderDance(0xF17EULL, 30.0F, 36);
     app.cinderDance.gauntletMode = true;
     setNotice(app, "The Five Trials begin. Complete every phase.");
   }
@@ -738,7 +738,7 @@ void drawCampaignScreen(const AppState& app) {
                                                                              ? "Survive the deterministic bullet patterns."
                                                                              : "Complete all five trials with shared hearts.",
                          375, 20, Color{227, 222, 205, 255});
-    drawTextCentered("Press ENTER when ready", 470, 22, Color{122, 217, 255, 255});
+    drawTextCentered("Press ENTER when ready   |   ESC to return", 470, 22, Color{122, 217, 255, 255});
     return;
   }
   if (!app.campaignAttempt) {
@@ -792,10 +792,19 @@ void drawCampaignScreen(const AppState& app) {
     }
     for (const auto& note : app.cinderDance.chart) {
       const float distance = note.time - app.cinderDance.elapsed;
-      if (!note.judged && distance >= -0.1F && distance <= 2.0F) {
-        const int x = 350 + note.lane * 150;
+      if (!note.judged && distance >= -0.15F && distance <= 2.1F) {
+        const int laneX = 350 + note.lane * 150;
         const int y = 505 - static_cast<int>(distance * 100.0F);
-        DrawCircle(x + 55, y, 14, Color{255, 118, 91, 255});
+        const int noteW = 110;
+        const int noteH = 28;
+        const int noteY = y - 14;
+        if (noteY + noteH >= 300 && noteY <= 550) {
+          DrawRectangle(laneX, noteY, noteW, noteH, Color{255, 118, 91, 255});
+          DrawRectangleLinesEx(
+              {static_cast<float>(laneX), static_cast<float>(noteY),
+               static_cast<float>(noteW), static_cast<float>(noteH)},
+              3.0F, BLACK);
+        }
       }
     }
     DrawText("Hit the lane when its note reaches the gold line", 405, 580, 18,
@@ -1006,14 +1015,23 @@ void drawCampaignScreen(const AppState& app) {
         DrawText(laneKeys[lane], laneX + 51, 456, 22, Color{255, 238, 180, 255});
       }
       const auto& chart = app.cinderDance.chart;
-      for (std::size_t index = app.cinderDance.nextNote;
-           index < chart.size() && index < app.cinderDance.nextNote + 8; ++index) {
-        const int x = 450 + chart[index].lane * 120;
-        const int y = 470 - static_cast<int>((chart[index].time -
-                                               app.cinderDance.elapsed) * 55.0F);
-        if (y >= 330 && y <= 440) {
-          DrawCircle(x, y, 17, Color{255, 168, 76, 255});
-          DrawCircleLines(x, y, 20, Color{255, 238, 180, 255});
+      for (std::size_t index = app.cinderDance.nextNote; index < chart.size(); ++index) {
+        const auto& note = chart[index];
+        const float distance = note.time - app.cinderDance.elapsed;
+        if (distance > 1.2F) break;
+        if (note.judged || distance < -0.15F) continue;
+        const int laneX = 390 + note.lane * 120;
+        const float speed = 180.0F;
+        const float noteCenterY = 467.5F - distance * speed;
+        const float noteH = 34.0F;
+        const float noteY = noteCenterY - noteH / 2.0F;
+        const float noteX = static_cast<float>(laneX + 5);
+        const float noteW = 106.0F;
+        if (noteY + noteH >= 330.0F && noteY <= 490.0F) {
+          DrawRectangle(static_cast<int>(noteX), static_cast<int>(noteY),
+                        static_cast<int>(noteW), static_cast<int>(noteH),
+                        Color{255, 168, 76, 255});
+          DrawRectangleLinesEx({noteX, noteY, noteW, noteH}, 3.0F, BLACK);
         }
       }
       DrawText("Hit when the note reaches the outlined receptor.", 445, 510, 17,
@@ -1715,7 +1733,7 @@ void updateEffects(AppState& app, float delta) {
           const bool passed = app.fiveTrials.burstTaps >= 48;
           ed::advanceFiveTrials(app.fiveTrials, passed, passed ? 0 : 1);
           if (app.fiveTrials.phase == 2) {
-            app.cinderDance = ed::startCinderDance(0xF17EULL, 30.0F);
+            app.cinderDance = ed::startCinderDance(0xF17EULL, 30.0F, 36);
             app.cinderDance.gauntletMode = true;
           }
         }
@@ -1854,10 +1872,19 @@ void updateEffects(AppState& app, float delta) {
 }
 
 bool handleActiveCampaignInput(AppState& app) {
-  if (app.screen != Screen::Campaign || !app.campaignAttempt) return false;
-  if (IsKeyPressed(KEY_BACKSPACE)) {
+  if (app.screen != Screen::Campaign) return false;
+  if (app.campaignIntro) {
+    if (IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_BACKSPACE)) {
+      app.campaignIntro = false;
+      return true;
+    }
+  }
+  if (!app.campaignAttempt) return false;
+  if (IsKeyPressed(KEY_BACKSPACE) || IsKeyPressed(KEY_ESCAPE)) {
     app.campaignAttempt = false;
     app.campaignIntro = false;
+    app.campaignScore = 0;
+    app.campaignHeartsLost = 0;
     setNotice(app, "Boss attempt abandoned.");
     return true;
   }
@@ -2015,8 +2042,11 @@ void handleInput(AppState& app) {
   if (handleActiveCampaignInput(app)) return;
   const bool cinderDanceActive =
       app.screen == Screen::Campaign && app.campaignAttempt &&
-      app.bosses[static_cast<std::size_t>(app.selectedBoss)].challenge ==
-          ed::BossChallenge::CinderDance;
+      (app.bosses[static_cast<std::size_t>(app.selectedBoss)].challenge ==
+           ed::BossChallenge::CinderDance ||
+       (app.bosses[static_cast<std::size_t>(app.selectedBoss)].challenge ==
+            ed::BossChallenge::FiveTrials &&
+        app.fiveTrials.phase == 2));
   if (IsKeyPressed(KEY_F) && !cinderDanceActive) {
     signOut(app);
     return;
@@ -2352,10 +2382,15 @@ void handleInput(AppState& app) {
         if (cell >= 0) ed::hitHeadHunt(app.headHunt, cell);
       }
     }
-    if (IsKeyPressed(KEY_BACKSPACE) && (app.campaignAttempt || app.campaignIntro)) {
-      app.campaignAttempt = false;
-      app.campaignIntro = false;
-      setNotice(app, "Boss attempt abandoned.");
+    if (IsKeyPressed(KEY_BACKSPACE) || IsKeyPressed(KEY_ESCAPE)) {
+      if (app.campaignIntro) {
+        app.campaignIntro = false;
+      } else if (app.campaignAttempt) {
+        app.campaignAttempt = false;
+        app.campaignScore = 0;
+        app.campaignHeartsLost = 0;
+        setNotice(app, "Boss attempt abandoned.");
+      }
     }
   } else if (app.screen == Screen::Dungeon) {
     if (app.inDungeonCombat) return; // Inputs handled by updateEffects or skipped
