@@ -1037,9 +1037,76 @@ void drawCampaignScreen(const AppState& app) {
       DrawText("Hit when the note reaches the outlined receptor.", 445, 510, 17,
                Color{255, 224, 145, 255});
     } else if (app.fiveTrials.phase == 3) {
-      DrawText("PARRY: match LEFT / DOWN / RIGHT", 410, 405, 22, RAYWHITE);
+      DrawText(("TRIAL 3: PARRY DUEL — Attack " +
+                std::to_string(std::min(app.parryDuel.attack + 1, app.parryDuel.maxAttacks)) +
+                "/" + std::to_string(app.parryDuel.maxAttacks) +
+                "   Parries: " + std::to_string(app.parryDuel.successfulParries) +
+                "   Hearts: " + std::to_string(app.fiveTrials.hearts)).c_str(),
+               360, 280, 21, RAYWHITE);
+      const char* directions[] = {"LEFT", "DOWN", "RIGHT"};
+      const std::string telegraph =
+          app.parryDuel.feint ? "FEINT — do not press a direction"
+                              : "INCOMING: " + std::string(directions[app.parryDuel.direction]);
+      DrawText(telegraph.c_str(), 430, 315, 22,
+               app.parryDuel.feint ? Color{255, 139, 102, 255}
+                                   : Color{255, 224, 145, 255});
+      const float reactionWindow =
+          std::max(0.35F, 0.6F - 0.25F * app.parryDuel.attack / 23.0F);
+      DrawRectangle(430, 348, 420, 10, Color{49, 45, 62, 255});
+      DrawRectangle(430, 348,
+                    static_cast<int>(420.0F *
+                                     std::clamp(1.0F - app.parryDuel.elapsed / reactionWindow,
+                                                0.0F, 1.0F)),
+                    10, Color{255, 139, 102, 255});
+      const char* labels[] = {"LEFT (A)", "DOWN (S)", "RIGHT (D)"};
+      for (int direction = 0; direction < 3; ++direction) {
+        const int x = 330 + direction * 220;
+        DrawRectangleRounded({static_cast<float>(x), 370, 170, 70}, 0.15F, 8,
+                             direction == app.parryDuel.direction && !app.parryDuel.feint
+                                 ? Color{108, 78, 48, 255}
+                                 : Color{67, 62, 82, 255});
+        DrawRectangleLinesEx({static_cast<float>(x), 370, 170, 70}, 2.0F,
+                             direction == app.parryDuel.direction && !app.parryDuel.feint
+                                 ? Color{255, 224, 145, 255}
+                                 : Color{93, 107, 145, 255});
+        DrawText(labels[direction], x + 35, 394, 18, Color{255, 224, 145, 255});
+      }
+      DrawText("Use Left/Down/Right, A/S/D or click a direction", 420, 460, 18,
+               Color{190, 190, 205, 255});
     } else if (app.fiveTrials.phase == 4) {
-      DrawText("SOUL DODGE: survive the remix", 455, 405, 22, RAYWHITE);
+      DrawText(("TRIAL 4: SOUL DODGE — " +
+                std::to_string(static_cast<int>(std::max(0.0F, 40.0F - app.soulDodge.elapsed))) +
+                "s   Hearts: " + std::to_string(app.fiveTrials.hearts) +
+                "   Hits: " + std::to_string(app.soulDodge.hits)).c_str(),
+               380, 275, 21, RAYWHITE);
+      DrawRectangle(320, 305, 640, 250, Color{18, 20, 39, 255});
+      DrawRectangleLines(320, 305, 640, 250, Color{118, 91, 157, 255});
+      for (const auto& hazard : app.soulDodge.hazards) {
+        if (hazard.kind == ed::SoulHazardKind::Laser) {
+          const int x = 320 + static_cast<int>(hazard.x * 640.0F);
+          DrawRectangle(x - 5, 305, 10, 250,
+                        hazard.telegraph > 0.0F ? Color{255, 238, 166, 150}
+                                               : Color{214, 80, 255, 220});
+        } else {
+          const float hazardX = hazard.kind == ed::SoulHazardKind::Rain
+                                    ? hazard.x
+                                    : hazard.x + std::cos(hazard.angle) * hazard.radius;
+          const float hazardY = hazard.kind == ed::SoulHazardKind::Rain
+                                    ? hazard.y
+                                    : hazard.y + std::sin(hazard.angle) * hazard.radius;
+          const int x = 320 + static_cast<int>(hazardX * 640.0F);
+          const int y = 305 + static_cast<int>(hazardY * 250.0F);
+          DrawCircle(x, y, hazard.kind == ed::SoulHazardKind::Ring ? 10 : 7,
+                     hazard.telegraph > 0.0F ? Color{255, 255, 255, 160}
+                                             : Color{178, 75, 232, 230});
+        }
+      }
+      DrawCircle(320 + static_cast<int>(app.soulDodge.playerX * 640.0F),
+                 305 + static_cast<int>(app.soulDodge.playerY * 250.0F), 7,
+                 app.soulDodge.invulnerable > 0.0F ? Color{255, 255, 255, 180}
+                                                   : Color{255, 88, 132, 255});
+      DrawText("WASD/Arrows to dodge   Shift for precision", 440, 565, 18,
+               Color{255, 224, 145, 255});
     } else {
       DrawText("CROWN STRIKE: press SPACE in the center zone", 395, 405, 21, RAYWHITE);
       DrawRectangle(450, 455, 380, 16, Color{57, 55, 70, 255});
@@ -1749,6 +1816,7 @@ void updateEffects(AppState& app, float delta) {
           ed::advanceFiveTrials(app.fiveTrials, passed, passed ? 0 : 1);
           if (app.fiveTrials.phase == 3) {
             app.parryDuel = ed::startParryDuel(0xF17EULL, 12);
+            app.parryDuel.elapsed = -0.75F;
           }
         }
       } else if (app.fiveTrials.phase == 3) {
@@ -1758,6 +1826,7 @@ void updateEffects(AppState& app, float delta) {
                                 app.parryDuel.heartsLost);
           if (app.fiveTrials.phase == 4) {
             app.soulDodge = ed::startSoulDodge(0xF17EULL, 0, 40.0F);
+            app.soulDodge.invulnerable = 1.0F;
           }
         }
       } else if (app.fiveTrials.phase == 4) {
@@ -2025,10 +2094,19 @@ bool handleActiveCampaignInput(AppState& app) {
       }
     } else if (app.fiveTrials.phase == 3) {
       int direction = -1;
-      if (IsKeyPressed(KEY_LEFT)) direction = 0;
-      if (IsKeyPressed(KEY_DOWN)) direction = 1;
-      if (IsKeyPressed(KEY_RIGHT)) direction = 2;
-      if (direction >= 0) ed::parryDuelInput(app.parryDuel, direction);
+      if (IsKeyPressed(KEY_LEFT) || IsKeyPressed(KEY_A)) direction = 0;
+      if (IsKeyPressed(KEY_DOWN) || IsKeyPressed(KEY_S)) direction = 1;
+      if (IsKeyPressed(KEY_RIGHT) || IsKeyPressed(KEY_D)) direction = 2;
+      if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+        const Vector2 mouse = GetMousePosition();
+        if (mouse.y >= 370.0F && mouse.y <= 440.0F &&
+            mouse.x >= 330.0F && mouse.x < 990.0F) {
+          direction = std::clamp(static_cast<int>((mouse.x - 330.0F) / 220.0F), 0, 2);
+        }
+      }
+      if (direction >= 0 && !ed::parryDuelInput(app.parryDuel, direction)) {
+        setNotice(app, "Wrong parry or feint.");
+      }
     } else if (app.fiveTrials.phase == 5 &&
                (IsKeyPressed(KEY_SPACE) || IsMouseButtonPressed(MOUSE_BUTTON_LEFT))) {
       ed::strikeCrown(app.crownStrike, 0.0F);
