@@ -20,6 +20,12 @@ find_package(raylib CONFIG REQUIRED)
 
 add_executable(emberdeep_graphical
     src/app/main.cpp
+    src/app/save_system.cpp
+    src/app/game_actions.cpp
+    src/app/game_updates.cpp
+    src/app/campaign_minigames.cpp
+    src/app/ui_screens.cpp
+    src/app/input_handler.cpp
 )
 
 target_link_libraries(emberdeep_graphical PRIVATE emberdeep_client raylib)

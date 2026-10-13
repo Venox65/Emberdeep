@@ -8,6 +8,15 @@
 
 namespace ed {
 
+struct EmberPerks {
+  int power = 0;      // +5% Mining Power per rank (max 20)
+  int wealth = 0;     // +5% Gold earned per rank (max 20)
+  int wisdom = 0;     // +5% XP gained per rank (max 20)
+  int potential = 0;  // +5 Level cap per 3 ranks (max 24)
+  int armory = 0;     // 1: Start each run with tier-3 gear set (max 1)
+  int smelting = 0;   // Smelting efficiency / bonus ingots (max 5)
+};
+
 struct PlayerState {
   int level = 1;
   int xp = 0;
@@ -27,6 +36,9 @@ struct PlayerState {
   int goldEarnedThisRun = 0;
   int pickaxeTier = 1;
   std::string currentLayer = "ashen-warrens";
+  int abyssBestFloor = 0;
+  EmberPerks emberPerks;
+  std::vector<bool> echoCleared;
   std::string lastGemHollowDate = "";
   int gemHollowStreak = 0;
   int gemHollowSwingsRemaining = 0;
@@ -35,8 +47,6 @@ struct PlayerState {
   int gemHollowTodayGold = 0;
   bool gemHollowActive = false;
   std::vector<int> gemHollowVeins;
-
-
 };
 
 struct GameState {
@@ -47,7 +57,8 @@ struct GameState {
 };
 
 bool canUnlockLayer(const GameState& game, const LayerDef& layer);
-void applyXp(GameState& game, int earnedXp);
+int playerLevelCap(const PlayerState& player);
+void applyXp(GameState& game, std::int64_t earnedXp);
 std::string serializeGameState(const GameState& game);
 bool deserializeGameState(const std::string& text, GameState& game);
 

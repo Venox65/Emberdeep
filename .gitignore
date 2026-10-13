@@ -11,19 +11,18 @@
 
 # Local toolchain files
 .vcpkg-root
-.env
-.env.*
-!.env.example
 
 # Logs and caches
 *.log
 *.tmp
 *.swp
+__pycache__/
+*.pyc
 
-# Local generated data
+# Local game data & saves
 *.sav
 *.profile
 *.bak
-server-data/
-postgres-data/
-emberdeep-*.sql
+*.cfg
+last_save.cfg
+

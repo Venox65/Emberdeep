@@ -62,20 +62,27 @@ bool canUnlockLayer(const GameState& game, const LayerDef& layer) {
   return true;
 }
 
-void applyXp(GameState& game, int earnedXp) {
+int playerLevelCap(const PlayerState& player) {
+  constexpr int baseCap = 60;
+  constexpr int maxCap = 100;
+  const int bonus = (std::clamp(player.emberPerks.potential, 0, 24) / 3) * 5;
+  return std::min(maxCap, baseCap + bonus);
+}
+
+void applyXp(GameState& game, std::int64_t earnedXp) {
   if (earnedXp <= 0) {
     return;
   }
 
   game.dirty = true;
-  game.player.xp += earnedXp;
-
-  constexpr int levelCap = 60;
-  while (game.player.level < levelCap && game.player.xp >= xpToNextLevel(game.player.level)) {
-    game.player.xp -= xpToNextLevel(game.player.level);
+  std::int64_t remainingXp = earnedXp + static_cast<std::int64_t>(game.player.xp);
+  const int levelCap = playerLevelCap(game.player);
+  while (game.player.level < levelCap && remainingXp >= xpToNextLevel(game.player.level)) {
+    remainingXp -= xpToNextLevel(game.player.level);
     ++game.player.level;
     ++game.player.vowPoints;
   }
+  game.player.xp = static_cast<int>(std::min<std::int64_t>(std::numeric_limits<int>::max(), remainingXp));
 }
 
 std::string serializeGameState(const GameState& game) {
@@ -101,6 +108,19 @@ std::string serializeGameState(const GameState& game) {
   out << "gold_earned_this_run=" << game.player.goldEarnedThisRun << '\n';
   out << "pickaxe_tier=" << game.player.pickaxeTier << '\n';
   out << "current_layer=" << game.player.currentLayer << '\n';
+  out << "abyss_best_floor=" << game.player.abyssBestFloor << '\n';
+  out << "perk_power=" << game.player.emberPerks.power << '\n';
+  out << "perk_wealth=" << game.player.emberPerks.wealth << '\n';
+  out << "perk_wisdom=" << game.player.emberPerks.wisdom << '\n';
+  out << "perk_potential=" << game.player.emberPerks.potential << '\n';
+  out << "perk_armory=" << game.player.emberPerks.armory << '\n';
+  out << "perk_smelting=" << game.player.emberPerks.smelting << '\n';
+  out << "echo_cleared=";
+  for (std::size_t i = 0; i < game.player.echoCleared.size(); ++i) {
+    if (i > 0) out << ",";
+    out << (game.player.echoCleared[i] ? 1 : 0);
+  }
+  out << '\n';
   out << "last_gem_hollow_date=" << game.player.lastGemHollowDate << '\n';
   out << "gem_hollow_streak=" << game.player.gemHollowStreak << '\n';
   out << "gem_hollow_swings_remaining=" << game.player.gemHollowSwingsRemaining << '\n';
@@ -214,6 +234,31 @@ bool deserializeGameState(const std::string& text, GameState& game) {
       }
     } else if (key == "current_layer") {
       game.player.currentLayer = value;
+    } else if (key == "abyss_best_floor") {
+      if (!parseIntValue(value, game.player.abyssBestFloor)) return false;
+    } else if (key == "perk_power") {
+      if (!parseIntValue(value, game.player.emberPerks.power)) return false;
+    } else if (key == "perk_wealth") {
+      if (!parseIntValue(value, game.player.emberPerks.wealth)) return false;
+    } else if (key == "perk_wisdom") {
+      if (!parseIntValue(value, game.player.emberPerks.wisdom)) return false;
+    } else if (key == "perk_potential") {
+      if (!parseIntValue(value, game.player.emberPerks.potential)) return false;
+    } else if (key == "perk_armory") {
+      if (!parseIntValue(value, game.player.emberPerks.armory)) return false;
+    } else if (key == "perk_smelting") {
+      if (!parseIntValue(value, game.player.emberPerks.smelting)) return false;
+    } else if (key == "echo_cleared") {
+      game.player.echoCleared.clear();
+      std::istringstream stream(value);
+      std::string field;
+      while (std::getline(stream, field, ',')) {
+        if (!field.empty()) {
+          try {
+            game.player.echoCleared.push_back(std::stoi(field) != 0);
+          } catch (...) {}
+        }
+      }
     } else if (key == "last_gem_hollow_date") {
       game.player.lastGemHollowDate = value;
     } else if (key == "gem_hollow_streak") {

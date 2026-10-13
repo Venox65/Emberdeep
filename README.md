@@ -1,165 +1,146 @@
 # Emberdeep: The Hollow Crown
 
-Emberdeep is an offline-first C++20/raylib procedural clicker game. It uses
-procedural shapes instead of sprites and keeps game rules in the shared `core`
-library so the terminal playtest, graphical client, and backend use the same
-logic.
+Emberdeep is an offline-first C++20 and raylib incremental mining RPG. It features satisfying clicker mining, deep equipment crafting, socketed gemstones, turn-based dungeon combat, 10 unique skill-based campaign boss minigames, and extensive post-game progression including Ascension prestige, Ember Perks, and the endless Deep Strata.
+
+All core gameplay rules, calculations, and save logic live in a modular `core` library shared by both the graphical client and the terminal playtest harness.
+
+---
 
 ## Requirements
 
-- C++20 compiler
-- CMake 3.25+
-- raylib
-- OpenSSL
-- Docker Desktop or another Docker Engine for the production API stack
+- **C++20 compliant compiler** (Clang 15+, GCC 12+, or MSVC 2022)
+- **CMake 3.25+**
+- **raylib** 5.0+
 
-On macOS with Homebrew:
-
+### macOS (Homebrew)
 ```bash
-brew install cmake raylib openssl
+brew install cmake raylib
 ```
 
-## Build and test locally
+### Linux (Ubuntu/Debian)
+```bash
+sudo apt update
+sudo apt install build-essential cmake libraylib-dev
+```
 
+---
+
+## Build and Run
+
+### 1. Build the project
 ```bash
 cmake -S . -B build -DCMAKE_PREFIX_PATH=/opt/homebrew
 cmake --build build -j 4
+```
+
+### 2. Run tests
+```bash
 ctest --test-dir build --output-on-failure
 ```
 
-Run the graphical client:
-
+### 3. Launch the game
 ```bash
 ./build/client/emberdeep_graphical
 ```
 
-Run the terminal playtest:
-
+Or run the terminal playtest harness:
 ```bash
 ./build/client/emberdeep_playtest
 ```
 
-## Equipment gems
+---
 
-Gear from tier 4 onward can have sockets. Gems found during dungeon runs or
-other progression can be inserted into the selected gear piece from the
-Inventory screen:
+## Game Overview & Screens
 
-- `G` inserts the first available gem into the selected gear piece.
-- `R` removes the selected piece's last socketed gem and returns it to inventory.
+Navigate between screens using top-row number keys (`1` through `8`) or the menu sidebar button:
 
-The Inventory screen shows each piece's used and available sockets. Socketed
-gems are saved with the equipment, and their bonuses apply while that piece is
-equipped. Gem definitions and their effects are listed in
-`core/include/ed/data_model.hpp`.
+### 1. Mine (`1`)
+- Mine through 10 distinct geological layers from **Ashen Warrens** down to **The Aether Vault**.
+- Click the central block or press `Space` to mine.
+- Switch between unlocked layers with `Q` and `E`.
+- **Post-Game — The Deep Strata:** After conquering all 10 Campaign bosses, Layer 10 gains an endless Depth counter. Each depth exponentially scales block HP ($\times 2.6^d$), XP ($\times 2.4^d$), Aetherium ore ($\times [1 + 0.5d]$), and awards rare **Aether Shards**.
+  - Adjust depth with `[` / `]` or `-` / `+` (or click `[-]` / `[+]`).
+  - Toggle auto-advancing depth on block destruction with `T` (or click `[Auto: ON/OFF]`).
 
-## Backend deployment
+### 2. Inventory (`2`)
+- Manage raw ores, smelted ingots, dungeon trophies, gems, and crafted gear.
+- Scroll with the **Mouse Wheel** or `W` / `S`.
+- Navigate gear cards with `A` / `D` or direct mouse click.
+- **Gem Sockets:** Gear from Tier 4 onward contains sockets. Press `G` to socket available gems or `R` to remove gems.
 
-The production profile uses PostgreSQL 16, the C++ API, and Caddy for HTTPS.
+### 3. Crafting & Smelting (`3`)
+- Smelt 4 ores into 1 ingot (`C`).
+- Craft tiered pickaxes and armor pieces using ingots, gold, and dungeon trophies.
+- Scroll through recipes with `W` / `S` and craft with `Enter`.
 
-```bash
-cp .env.example .env
-# Edit .env and replace every placeholder with a strong secret.
-docker compose up -d --build --pull always
-```
+### 4. Campaign (`4`)
+- Challenge 10 unique bosses featuring distinct mini-game mechanics:
+  1. **Grubnok the Undermother** — Frenzy Dig (speed clicks)
+  2. **Sir Rattlebone** — Bone Duel (rhythm needle gauge)
+  3. **Morwenna the Ashen** — Cinder Dance (4-lane rhythm game: `D`, `F`, `J`, `K`)
+  4. **Thessaly the Blind** — Head Hunt (directional reflexes)
+  5. **Aldric the Unbroken** — Parry Duel (timed directional parrying: `A`, `W`, `D`)
+  6. **Isolde the Weaver** — Rune Recall (memory sequence recall: `1`–`4`)
+  7. **Seraphel the Sunken** — Star Trace (path timing)
+  8. **Ignathia the Molten** — Heartpierce (charge and release)
+  9. **Xar'mal the Devourer** — Soul Dodge (bullet dodging: `A` / `D`)
+  10. **The Hollow King** — The Five Trials (multi-phase gauntlet)
+- **Echo Campaign:** After conquering The Hollow King, all 10 bosses become replayable in the post-game Echo Gauntlet with escalating difficulty, bonus rewards, and rank progression.
+- Preview or quit any boss fight at any time with `Esc`.
 
-Check the services:
+### 5. Dungeon (`5`)
+- Undertake 5-floor turn-based expeditions against zone enemies that spawn together.
+- Combat proceeds automatically with visual turn order and damage floats.
+- Press `Space` or `Esc` to fast-forward the current floor.
+- Conclude runs with a detailed victory rewards summary.
 
-```bash
-curl https://your-domain.example/healthz
-curl https://your-domain.example/readyz
-docker compose ps
-docker compose logs -f api
-```
+### 6. Gem Hollow (`6`)
+- A daily mining event featuring 12 hidden veins for mining gemstones and arcane dust.
 
-For local client playtesting while the containers are running, the API is
-available at `http://127.0.0.1:8080`.
+### 7. Enchanting (`7`)
+- Enhance equipment substats by spending gold and arcane dust.
 
-Existing database volumes created before the split PostgreSQL roles need the
-one-time upgrade script documented in `deploy/README.md`.
+### 8. Profile & Ascension (`8`)
+- View lifetime miner statistics, bosses cleared, and deepest depth reached.
+- **Ascension Prestige:** Reset run progress after defeating Boss 10 to earn permanent **Ember Marks**.
+- **Ember Perks:** Spend Ember Marks on persistent account upgrades:
+  - **Potential:** Extends the level cap from 60 up to 100 (+5 cap per 3 ranks).
+  - **Power:** +5% Mining Power per rank.
+  - **Wealth:** +5% Gold earned per rank.
+  - **Wisdom:** +5% XP gained per rank.
+  - **Armory:** Start every ascension run equipped with a Tier-3 starter gear set.
+  - **Smelting:** Improved smelting efficiency.
 
-PostgreSQL data lives in the `postgres_data` volume, and API fallback state lives
-in `api_data`, so recreating containers does not remove saved data. Authenticated
-sessions default to 30 days (`EMBERDEEP_ACCESS_TOKEN_TTL_SECONDS`); migration
-`0003` extends existing active sessions once so a server relaunch does not
-invalidate the token stored by the desktop client.
+---
 
-## Accounts and local saves
+## Save System
 
-Guest progress is stored locally. Signed-in progress is stored locally and
-synchronized to the backend. Local saves are username-bound:
+- **Multi-Save Slot Management:** Click the `[SAV]` button in the top bar to open the local save manager modal.
+- **Seamless Switching:** Select and load any local save file (`emberdeep*.sav`) directly without restarting the game.
+- **Create New Saves:** Create fresh named save slots on the fly from the UI dialog.
+- **Atomic Background Autosaves:** Background worker thread periodically writes progress safely to disk without causing frame drops.
+- **Manual Save:** Press `F5` or click `[SAVE]` in the top bar for an immediate atomic save.
+
+---
+
+## Repository Structure
 
 ```text
-emberdeep-guest.sav
-emberdeep-<username>.sav
+├── client/
+│   ├── src/app/                 # Modular raylib graphical application
+│   │   ├── main.cpp             # Game bootstrap, initialization & main loop orchestrator
+│   │   ├── app_state.hpp        # Central AppState structure, screens, timers & animation state
+│   │   ├── save_system.hpp/.cpp # Multi-save management, background thread & slot modal UI
+│   │   ├── game_actions.hpp/.cpp# Mining hits, block generation, layer selection & triggers
+│   │   ├── game_updates.hpp/.cpp# Per-frame logic, boss cooldowns, floating texts & screen shakes
+│   │   ├── campaign_minigames.hpp/.cpp # UI & mechanics for all 10 boss mini-games
+│   │   ├── ui_screens.hpp/.cpp  # Screen rendering (Mine, Inventory, Crafting, Profile, etc.)
+│   │   └── input_handler.hpp/.cpp # Keyboard and mouse dispatch routing across screens
+│   └── src/playtest/            # Headless terminal playtest harness
+├── core/                        # Platform-agnostic game logic and data models
+│   ├── include/ed/              # Public headers (mining, combat, stats, postgame, save)
+│   └── src/                     # Core mechanics, formulas, and state simulation
+├── data/                        # JSON data definitions (materials, layers, bosses, perks)
+├── sprites/                     # Pixel art assets for mining blocks and ingots
+└── tests/                       # Catch2 automated test suite (47 unit and integration tests)
 ```
-
-Signing out does not delete any save. The next account can sign in or play as a
-guest, and switching back loads that account's local save before cloud sync.
-The account profile is stored in `emberdeep.profile` and is ignored by Git.
-
-## Inspecting PostgreSQL data
-
-Open a `psql` shell as the administrator:
-
-```bash
-set -a
-. .env
-set +a
-DB=${POSTGRES_DB:-emberdeep}
-docker compose exec -T \
-  -e PGPASSWORD="$POSTGRES_ADMIN_PASSWORD" \
-  db psql -h 127.0.0.1 \
-  -U "$POSTGRES_ADMIN_USER" \
-  -d "$DB"
-```
-
-Useful queries:
-
-```sql
-\dt
-\du
-SELECT id, public_id, username, status, created_at, last_seen_at
-FROM accounts
-ORDER BY id;
-
-SELECT account_id, revision, schema_version, progress_score, created_at
-FROM saves
-ORDER BY account_id, revision DESC;
-
-SELECT count(*) AS account_count FROM accounts;
-SELECT count(*) AS save_revision_count FROM saves;
-\q
-```
-
-One-off commands without opening a shell:
-
-```bash
-docker compose exec -T \
-  -e PGPASSWORD="$POSTGRES_ADMIN_PASSWORD" \
-  db psql -h 127.0.0.1 -U "$POSTGRES_ADMIN_USER" -d "$DB" \
-  -c 'SELECT username, status, created_at FROM accounts ORDER BY id;'
-```
-
-Back up the database:
-
-```bash
-docker compose exec -T \
-  -e PGPASSWORD="$POSTGRES_ADMIN_PASSWORD" \
-  db pg_dump -h 127.0.0.1 -U "$POSTGRES_ADMIN_USER" "$DB" \
-  > "emberdeep-$(date +%F).sql"
-```
-
-## Repository layout
-
-| Path | Purpose |
-|---|---|
-| `core/` | Shared game rules, data models, saves, stats, and cloud client |
-| `client/` | Graphical and terminal clients |
-| `server/` | API, PostgreSQL backend, migrations, and database scripts |
-| `tests/` | Catch2 core and persistence tests |
-| `data/` | Data-driven materials, layers, bosses, and dungeon definitions |
-| `deploy/` | Caddy and deployment documentation |
-
-Never commit `.env`, database dumps, local save files, profile files, or
-generated build output.

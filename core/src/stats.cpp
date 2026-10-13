@@ -1,4 +1,5 @@
 #include "ed/stats.hpp"
+#include "ed/postgame.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -123,6 +124,10 @@ PlayerStats calculatePlayerStats(const GameState& game, const InventoryState& in
   }
 
   stats.miningPowerBonusPercent += game.player.level * 1.5;
+  stats.miningPowerBonusPercent += perkMiningPowerBonusBasisPoints(game.player.emberPerks) / 100.0;
+  stats.goldBonusBasisPoints += perkGoldBonusBasisPoints(game.player.emberPerks);
+  stats.xpBonusBasisPoints += perkXpBonusBasisPoints(game.player.emberPerks);
+
   stats.attack += static_cast<int>(std::llround(stats.attack * stats.attackBonusBasisPoints / 10000.0));
   stats.maxHp += static_cast<int>(std::llround(stats.maxHp * stats.maxHpBonusBasisPoints / 10000.0));
   stats.defense += static_cast<int>(std::llround(stats.defense * stats.defenseBonusBasisPoints / 10000.0));

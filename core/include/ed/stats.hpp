@@ -23,6 +23,7 @@ struct PlayerStats {
   int defenseBonusBasisPoints = 0;
   int maxHpBonusBasisPoints = 0;
   int xpBonusBasisPoints = 0;
+  int goldBonusBasisPoints = 0;
   int focusBasisPoints = 0;
   int lifestealBasisPoints = 0;
 };

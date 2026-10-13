@@ -5,6 +5,7 @@
 #include <stdexcept>
 
 #include "ed/formulas.hpp"
+#include "ed/postgame.hpp"
 
 namespace ed {
 
@@ -175,6 +176,45 @@ BlockSpec generateBlockForLayer(const std::vector<LayerDef>& layers,
   return block;
 }
 
+BlockSpec generateDeepStrataBlock(const std::vector<LayerDef>& layers,
+                                const std::vector<MaterialDef>& materials,
+                                int depth,
+                                int luck,
+                                Pcg32& rng) {
+  const int safeDepth = std::max(1, depth);
+  const MaterialDef* material = findMaterialForTier(layers, materials, 10);
+
+  const std::int64_t baseHp = material ? material->hp : 108700;
+  const std::int64_t baseXp = material ? material->xp : 13200;
+  const int hardness = material ? material->hardness : 300;
+  const int sell = material ? material->sell : 4900;
+  const std::string color = material ? material->color : "#7cf7e0";
+
+  const auto dsb = deepStrataBlock(safeDepth, baseHp, baseXp);
+  const Rarity rarity = rarityFromIndex(weightedRarityRoll(rng, luck));
+
+  BlockSpec block;
+  block.layerId = "aether-vault";
+  block.materialId = "aetherium";
+  block.materialName = "Aetherium";
+  block.color = color;
+  block.maxHp = static_cast<std::int64_t>(std::llround(dsb.hp * rarityHpMultiplier(rarity)));
+  block.hardness = hardness;
+  block.xp = static_cast<std::int64_t>(std::llround(dsb.xp * rarityXpMultiplier(rarity)));
+  block.sell = sell;
+  block.rarityWeight = rarityWeightForLuck(luck);
+  block.rarity = rarity;
+  block.dropMultiplier = static_cast<int>(dsb.oreQuantity * rarityMultiplier(rarity));
+  block.depth = safeDepth;
+  block.aetherShardChanceBasisPoints = dsb.aetherShardChanceBasisPoints;
+
+  return block;
+}
+
+BlockSpec generateDeepStrataBlock(int depth, int luck, Pcg32& rng) {
+  return generateDeepStrataBlock({}, {}, depth, luck, rng);
+}
+
 MiningProgress createMiningProgress(const BlockSpec& spec) {
   MiningProgress progress;
   progress.currentHp = spec.maxHp;
@@ -185,6 +225,8 @@ MiningProgress createMiningProgress(const BlockSpec& spec) {
   progress.rarity = spec.rarity;
   progress.materialId = spec.materialId;
   progress.layerId = spec.layerId;
+  progress.depth = spec.depth;
+  progress.aetherShardChanceBasisPoints = spec.aetherShardChanceBasisPoints;
   return progress;
 }
 

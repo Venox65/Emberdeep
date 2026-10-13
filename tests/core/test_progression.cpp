@@ -43,6 +43,11 @@ TEST_CASE("save state round-trips with plain-text serialization") {
   original.player.echoRank = 3;
   original.player.pickaxeTier = 4;
   original.player.currentLayer = "silvermire";
+  original.player.abyssBestFloor = 42;
+  original.player.emberPerks.power = 5;
+  original.player.emberPerks.potential = 3;
+  original.player.emberPerks.armory = 1;
+  original.player.echoCleared = {true, false, true};
 
   const std::string text = ed::serializeGameState(original);
   ed::GameState restored;
@@ -59,4 +64,9 @@ TEST_CASE("save state round-trips with plain-text serialization") {
   REQUIRE(restored.player.bossesCleared == original.player.bossesCleared);
   REQUIRE(restored.player.pickaxeTier == original.player.pickaxeTier);
   REQUIRE(restored.player.currentLayer == original.player.currentLayer);
+  REQUIRE(restored.player.abyssBestFloor == 42);
+  REQUIRE(restored.player.emberPerks.power == 5);
+  REQUIRE(restored.player.emberPerks.potential == 3);
+  REQUIRE(restored.player.emberPerks.armory == 1);
+  REQUIRE(restored.player.echoCleared == std::vector<bool>{true, false, true});
 }

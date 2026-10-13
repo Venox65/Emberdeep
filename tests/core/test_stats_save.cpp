@@ -61,11 +61,28 @@ TEST_CASE("save snapshots round-trip game, inventory, gear, and campaign") {
   original.campaign.cleared = {true, false};
   original.campaign.bestStars = {3, 0};
 
+  original.game.player.abyssBestFloor = 15;
+  original.game.player.emberMarks = 40;
+  original.game.player.emberPerks.wealth = 2;
+  original.game.player.echoRank = 1;
+  original.game.player.deepestDepth = 7;
+  original.game.player.aetherShards = 12;
+  original.game.player.echoCleared = {true, false, true, false, false, false, false, false, false, false};
+
   const auto text = ed::serializeSaveSnapshot(original);
   ed::SaveSnapshot restored;
   REQUIRE(ed::deserializeSaveSnapshot(text, restored));
   REQUIRE(restored.game.player.level == 8);
   REQUIRE(restored.game.player.gold == 1234);
+  REQUIRE(restored.game.player.abyssBestFloor == 15);
+  REQUIRE(restored.game.player.emberMarks == 40);
+  REQUIRE(restored.game.player.emberPerks.wealth == 2);
+  REQUIRE(restored.game.player.echoRank == 1);
+  REQUIRE(restored.game.player.deepestDepth == 7);
+  REQUIRE(restored.game.player.aetherShards == 12);
+  REQUIRE(restored.game.player.echoCleared.size() == 10);
+  REQUIRE(restored.game.player.echoCleared[0]);
+  REQUIRE_FALSE(restored.game.player.echoCleared[1]);
   REQUIRE(ed::countItem(restored.inventory, "ore", "iron") == 12);
   REQUIRE(restored.inventory.gear.size() == 1);
   REQUIRE(restored.inventory.gear.front().socketedGems ==
@@ -74,6 +91,14 @@ TEST_CASE("save snapshots round-trip game, inventory, gear, and campaign") {
   REQUIRE(restored.campaign.cleared.size() == 2);
   REQUIRE(restored.campaign.cleared[0]);
   REQUIRE(restored.campaign.bestStars[0] == 3);
+
+  // Tampering check: modifying any value without updating hash fails deserialization
+  auto tampered = text;
+  auto goldPos = tampered.find("gold=1234");
+  REQUIRE(goldPos != std::string::npos);
+  tampered.replace(goldPos, 9, "gold=9999");
+  ed::SaveSnapshot tamperedRestored;
+  REQUIRE_FALSE(ed::deserializeSaveSnapshot(tampered, tamperedRestored));
 }
 
 TEST_CASE("save backend writes and reads atomically") {
@@ -86,6 +111,15 @@ TEST_CASE("save backend writes and reads atomically") {
   REQUIRE(ed::readSave(path, restored));
   REQUIRE(restored.game.player.gold == 77);
   std::filesystem::remove(path);
+}
+
+TEST_CASE("emberdeep.sav on disk is valid and loads successfully") {
+  if (std::filesystem::exists("emberdeep.sav")) {
+    ed::SaveSnapshot snapshot;
+    REQUIRE(ed::readSave("emberdeep.sav", snapshot));
+    REQUIRE(snapshot.game.player.level == 76);
+    REQUIRE(snapshot.game.player.aetherShards == 1000000);
+  }
 }
 
 
