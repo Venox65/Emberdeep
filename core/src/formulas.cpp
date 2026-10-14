@@ -10,7 +10,12 @@ int xpToNextLevel(int level) {
   if (level < 1) {
     return 40;
   }
-  return static_cast<int>(std::llround(40.0 * std::pow(static_cast<double>(level), 1.8)));
+  if (level < 60) {
+    return static_cast<int>(std::llround(40.0 * std::pow(static_cast<double>(level), 1.8)));
+  }
+  const double base60 = 40.0 * std::pow(60.0, 1.8);
+  const double delta = static_cast<double>(level - 60);
+  return static_cast<int>(std::llround(base60 * std::pow(1.15, delta)));
 }
 
 int materialHpForTier(int tier) {

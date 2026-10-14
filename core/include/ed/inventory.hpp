@@ -55,7 +55,7 @@ bool removeItemFromInventory(InventoryState& inventory,
                            const std::string& itemId,
                            int quantity = 1);
 bool equipGear(InventoryState& inventory, const GearPiece& piece);
-int gearSocketCount(int tier, bool legendary = false);
+int gearSocketCount(int tier, bool legendary = false, int upgradeLevel = 0);
 int countItem(const InventoryState& inventory, const std::string& type, const std::string& itemId);
 bool insertGem(InventoryState& inventory, GearPiece& piece, const std::string& gemId);
 bool removeGem(InventoryState& inventory, GearPiece& piece, std::size_t socketIndex);

@@ -1,4 +1,5 @@
 #include "ed/crafting.hpp"
+#include "ed/postgame.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -99,21 +100,72 @@ bool craftGear(GameState& game, InventoryState& inventory, const CraftRecipe& re
   return true;
 }
 
+bool isMythicUpgradeUnlocked(const GameState& game) {
+  return isEchoCampaignUnlocked(game);
+}
+
+int maxGearUpgradeLevel(const GameState& game) {
+  return isMythicUpgradeUnlocked(game) ? 20 : 10;
+}
+
 int upgradeGoldCost(const GearPiece& piece) {
-  if (piece.upgradeLevel >= 10) return 0;
+  if (piece.upgradeLevel >= 20) return 0;
   return static_cast<int>(std::ceil(20.0 * std::pow(3.0, piece.tier - 1) *
                                     std::pow(piece.upgradeLevel + 1, 1.5)));
 }
 
-bool upgradeGear(GameState& game, GearPiece& piece) {
-  const int cost = upgradeGoldCost(piece);
-  if (cost == 0 || game.player.gold < cost ||
-      game.player.arcaneDust < piece.upgradeLevel + 1) {
+int upgradeDustCost(const GearPiece& piece) {
+  if (piece.upgradeLevel >= 20) return 0;
+  return piece.upgradeLevel + 1;
+}
+
+int upgradeAetherShardCost(const GearPiece& piece) {
+  if (piece.upgradeLevel < 10 || piece.upgradeLevel >= 20) return 0;
+  return piece.upgradeLevel + 1 - 10;
+}
+
+int upgradeEchoSigilCost(const GearPiece& piece) {
+  if (piece.upgradeLevel < 10 || piece.upgradeLevel >= 20) return 0;
+  return piece.upgradeLevel + 1 - 10;
+}
+
+bool canUpgradeGear(const GameState& game, const GearPiece& piece) {
+  if (piece.upgradeLevel >= maxGearUpgradeLevel(game)) {
     return false;
   }
-  game.player.gold -= cost;
-  game.player.arcaneDust -= piece.upgradeLevel + 1;
+  if (piece.upgradeLevel >= 10 && !isMythicUpgradeUnlocked(game)) {
+    return false;
+  }
+  const int gold = upgradeGoldCost(piece);
+  const int dust = upgradeDustCost(piece);
+  const int shards = upgradeAetherShardCost(piece);
+  const int sigils = upgradeEchoSigilCost(piece);
+
+  return game.player.gold >= gold &&
+         game.player.arcaneDust >= dust &&
+         game.player.aetherShards >= shards &&
+         game.player.echoSigils >= sigils;
+}
+
+bool upgradeGear(GameState& game, GearPiece& piece) {
+  if (!canUpgradeGear(game, piece)) {
+    return false;
+  }
+  const int gold = upgradeGoldCost(piece);
+  const int dust = upgradeDustCost(piece);
+  const int shards = upgradeAetherShardCost(piece);
+  const int sigils = upgradeEchoSigilCost(piece);
+
+  game.player.gold -= gold;
+  game.player.arcaneDust -= dust;
+  game.player.aetherShards -= shards;
+  game.player.echoSigils -= sigils;
   ++piece.upgradeLevel;
+
+  if (piece.tier >= 10 && piece.upgradeLevel >= 11) {
+    piece.sockets = gearSocketCount(piece.tier, piece.legendary, piece.upgradeLevel);
+  }
+
   game.dirty = true;
   return true;
 }

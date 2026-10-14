@@ -62,6 +62,9 @@ struct DungeonRunResult {
   int arcaneDust = 0;
   bool gemFound = false;
   int rounds = 0;
+  int echoSigils = 0;
+  int aetherShards = 0;
+  bool isAbyss = false;
   std::vector<DungeonCombatEvent> log;
 };
 
@@ -70,5 +73,8 @@ std::vector<DungeonZoneDef> defaultDungeonZones();
 DungeonRunResult simulateDungeonRun(const DungeonPlayerStats& player,
                                     const DungeonZoneDef& zone,
                                     std::uint64_t seed);
+DungeonRunResult simulateAbyssRun(const DungeonPlayerStats& player,
+                                  std::uint64_t seed,
+                                  int maxFloors = 100);
 
 } // namespace ed

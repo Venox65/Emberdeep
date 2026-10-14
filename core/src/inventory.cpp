@@ -99,20 +99,21 @@ bool equipGear(InventoryState& inventory, const GearPiece& piece) {
   return equipped;
 }
 
-int gearSocketCount(int tier, bool legendary) {
-  if (legendary) {
-    return std::max(0, ((tier >= 10) ? 3 : (tier >= 7 ? 2 : (tier >= 4 ? 1 : 0))) + 1);
-  }
+int gearSocketCount(int tier, bool legendary, int upgradeLevel) {
+  int count = 0;
   if (tier >= 10) {
-    return 3;
+    count = (upgradeLevel >= 11) ? 4 : 3;
+  } else if (tier >= 7) {
+    count = 2;
+  } else if (tier >= 4) {
+    count = 1;
+  } else {
+    count = 0;
   }
-  if (tier >= 7) {
-    return 2;
+  if (legendary) {
+    count += 1;
   }
-  if (tier >= 4) {
-    return 1;
-  }
-  return 0;
+  return count;
 }
 
 int countItem(const InventoryState& inventory, const std::string& type, const std::string& itemId) {

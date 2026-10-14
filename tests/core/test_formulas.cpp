@@ -6,6 +6,11 @@ TEST_CASE("xp progression follows the designed formula") {
   REQUIRE(ed::xpToNextLevel(1) == 40);
   REQUIRE(ed::xpToNextLevel(2) == 139);
   REQUIRE(ed::xpToNextLevel(10) == 2524);
+  REQUIRE(ed::xpToNextLevel(60) == 63494);
+  REQUIRE(ed::xpToNextLevel(61) == 73018);
+  REQUIRE(ed::xpToNextLevel(70) > 250000);
+  REQUIRE(ed::xpToNextLevel(80) > 1000000);
+  REQUIRE(ed::xpToNextLevel(100) > 10000000);
 }
 
 TEST_CASE("material formulas match the tier ladder") {

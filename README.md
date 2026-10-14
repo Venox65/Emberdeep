@@ -58,7 +58,7 @@ Navigate between screens using top-row number keys (`1` through `8`) or the menu
 - Mine through 10 distinct geological layers from **Ashen Warrens** down to **The Aether Vault**.
 - Click the central block or press `Space` to mine.
 - Switch between unlocked layers with `Q` and `E`.
-- **Post-Game — The Deep Strata:** After conquering all 10 Campaign bosses, Layer 10 gains an endless Depth counter. Each depth exponentially scales block HP ($\times 2.6^d$), XP ($\times 2.4^d$), Aetherium ore ($\times [1 + 0.5d]$), and awards rare **Aether Shards**.
+- **Post-Game — The Deep Strata:** After conquering all 10 Campaign bosses, Layer 10 gains an endless Depth counter. Each depth scales block HP ($\times 2.6^d$), sustained post-game XP ($\times 2.4 \times 1.35^{d-1}$), Aetherium ore ($\times [1 + 0.5d]$), and awards rare **Aether Shards** used for Mythic upgrades.
   - Adjust depth with `[` / `]` or `-` / `+` (or click `[-]` / `[+]`).
   - Toggle auto-advancing depth on block destruction with `T` (or click `[Auto: ON/OFF]`).
 
@@ -66,6 +66,8 @@ Navigate between screens using top-row number keys (`1` through `8`) or the menu
 - Manage raw ores, smelted ingots, dungeon trophies, gems, and crafted gear.
 - Scroll with the **Mouse Wheel** or `W` / `S`.
 - Navigate gear cards with `A` / `D` or direct mouse click.
+- **Gear Upgrades (`U`):** Upgrade gear +0 to +10 using gold and Arcane Dust (+8% base stats per level).
+- **Mythic Gear Upgrades (`+11` to `+20`):** Unlocked after defeating The Hollow King. Each level adds +10% base stats. Costs gold, dust, **Aether Shards** (from Deep Strata), and **Echo Sigils** (from Echo Campaign). Reaching +11 unlocks a 4th socket on Tier 10 gear, and mythic pieces emit an animated ethereal glow.
 - **Gem Sockets:** Gear from Tier 4 onward contains sockets. Press `G` to socket available gems or `R` to remove gems.
 
 ### 3. Crafting & Smelting (`3`)
@@ -85,14 +87,27 @@ Navigate between screens using top-row number keys (`1` through `8`) or the menu
   8. **Ignathia the Molten** — Heartpierce (charge and release)
   9. **Xar'mal the Devourer** — Soul Dodge (bullet dodging: `A` / `D`)
   10. **The Hollow King** — The Five Trials (multi-phase gauntlet)
-- **Echo Campaign:** After conquering The Hollow King, all 10 bosses become replayable in the post-game Echo Gauntlet with escalating difficulty, bonus rewards, and rank progression.
-- Preview or quit any boss fight at any time with `Esc`.
+- **Two-Phase Boss Encounters:**
+  1. **Phase 1: Minigame Trial:** Pass the boss's specific reflex/rhythm trial. Performance awards 1 to 3 stars. Higher stars grant combat mastery (+30% attack/defense and boss starting at 85% HP for 3★; +15% stats and 92% HP for 2★).
+  2. **Phase 2: Turn-Based Combat Arena:** Immediately follows the minigame to check gear readiness. Features full RPG turn-based combat with dynamic health bars, critical strikes, defense mitigation, boss ability triggers every 3 turns, and scrolling battle logs. Fast-forward by holding `Space` or `Enter`.
+- **Empowered Echo Campaign:** After conquering The Hollow King, switch between **STANDARD** and **ECHO CAMPAIGN** (`E` or `Tab`). In Echo mode:
+  - **Heightened Minigame Speed & Precision:** Minigames accelerate by $1.25\times$ to $2.05\times$ tick speed and demand higher clear scores.
+  - **Empowered Combat Stats:** Echo bosses gain massive stat multipliers (+35% HP, +25% Atk, +20% Def, +15% Speed per Echo rank), testing high-level Mythic equipment (+11 to +20) and socketed gemstones.
+  - **Banishment Tracking & Sigil Rewards:** Defeating Echo bosses yields gold and **Echo Sigils** used for Mythic gear enhancements.
+  - Banishing all 10 Echo bosses advances the player to the next Echo Rank!
+- Retreat from any boss minigame or combat at any time using `Esc` or `Backspace`.
 
 ### 5. Dungeon (`5`)
 - Undertake 5-floor turn-based expeditions against zone enemies that spawn together.
 - Combat proceeds automatically with visual turn order and damage floats.
 - Press `Space` or `Esc` to fast-forward the current floor.
 - Conclude runs with a detailed victory rewards summary.
+- **Post-Game — The Abyss (Endless Gauntlet):** After conquering The Hollow King, switch between **STANDARD EXPEDITIONS** and **THE ABYSS** (`E` or `Tab`).
+  - Descend into an infinite subterranean dungeon where enemies scale by $+8\%$ stats per floor.
+  - **Milestone Mini-Bosses:** Formidable Void Bosses challenge the player every 10 floors ($10, 20, 30, \dots$).
+  - **Breather Recovery:** Slaying a milestone boss restores 25% of the player's Max HP.
+  - **Rich Post-Game Spoils:** High gold, XP, arcane dust, guaranteed **Echo Sigils**, and rare **Aether Shards**.
+  - Tracks and saves your lifetime personal record (`Abyss Best Floor`).
 
 ### 6. Gem Hollow (`6`)
 - A daily mining event featuring 12 hidden veins for mining gemstones and arcane dust.

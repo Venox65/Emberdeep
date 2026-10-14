@@ -111,6 +111,8 @@ struct AppState {
   int campaignHeartsLost = 0;
   bool campaignAttempt = false;
   bool campaignIntro = false;
+  bool echoCampaignMode = false;
+  bool abyssDungeonMode = false;
   ed::FrenzyDigState frenzyDig;
   ed::BoneDuelState boneDuel;
   ed::CinderDanceState cinderDance;
@@ -138,6 +140,28 @@ struct AppState {
   std::int64_t dungeonPlayerMaxHp = 0;
   std::vector<EnemyUiState> dungeonEnemies;
   std::vector<std::string> dungeonBattleLog;
+
+  bool inBossCombat = false;
+  bool bossCombatShowResults = false;
+  ed::BossCombatResult bossCombatResult;
+  std::size_t bossCombatLogIndex = 0;
+  float bossCombatTimer = 0.0F;
+  std::int64_t bossCombatPlayerHp = 0;
+  std::int64_t bossCombatPlayerMaxHp = 0;
+  std::int64_t bossCombatBossHp = 0;
+  std::int64_t bossCombatBossMaxHp = 0;
+  std::string bossCombatBossName;
+  std::string bossCombatBossAbility;
+  int bossCombatStars = 1;
+  bool bossCombatIsEcho = false;
+  int bossCombatEchoRank = 1;
+  int bossCombatBossIndex = 0;
+  std::vector<std::string> bossBattleLog;
+  bool bossCombatRewardsClaimed = false;
+  int bossCombatRewardGold = 0;
+  int bossCombatRewardXp = 0;
+  int bossCombatRewardSigils = 0;
+  std::string bossCombatRewardLegendary;
 
   bool ascensionConfirm = false;
   int deepStrataDepth = 0;

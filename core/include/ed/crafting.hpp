@@ -28,7 +28,13 @@ bool enchantGearPiece(GameState& game, InventoryState& inventory, const std::str
 int enchantDustCost(const GearPiece& piece);
 int enchantGoldCost(const GearPiece& piece);
 
-bool upgradeGear(GameState& game, GearPiece& piece);
+bool isMythicUpgradeUnlocked(const GameState& game);
+int maxGearUpgradeLevel(const GameState& game);
 int upgradeGoldCost(const GearPiece& piece);
+int upgradeDustCost(const GearPiece& piece);
+int upgradeAetherShardCost(const GearPiece& piece);
+int upgradeEchoSigilCost(const GearPiece& piece);
+bool canUpgradeGear(const GameState& game, const GearPiece& piece);
+bool upgradeGear(GameState& game, GearPiece& piece);
 
 } // namespace ed

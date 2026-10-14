@@ -1,4 +1,5 @@
 #include "ed/postgame.hpp"
+#include "ed/dungeon.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -146,4 +147,38 @@ TEST_CASE("echo campaign tracks clears, scales rewards, and advances rank after 
   ed::recordEchoBossClear(game, 9);
   REQUIRE(game.player.echoRank == 1);
   REQUIRE_FALSE(ed::isEchoBossCleared(game, 0));
+}
+
+TEST_CASE("the abyss simulation scales floors, rewards milestone loot, and tracks progression") {
+  ed::DungeonPlayerStats endgamePlayer;
+  endgamePlayer.maxHp = 600000;
+  endgamePlayer.attack = 75000;
+  endgamePlayer.defense = 40000;
+  endgamePlayer.speed = 45;
+  endgamePlayer.critChanceBasisPoints = 2500;
+  endgamePlayer.critDamageBasisPoints = 18000;
+
+  // Run a 15-floor Abyss gauntlet
+  const auto result = ed::simulateAbyssRun(endgamePlayer, 0x12345ULL, 15);
+  REQUIRE(result.isAbyss);
+  REQUIRE(result.floorsCleared >= 10); // Successfully beat at least the 10th floor mini-boss
+  REQUIRE(result.gold > 0);
+  REQUIRE(result.xp > 0);
+  // Defeating Floor 10 mini-boss guarantees Echo Sigils and Aether Shards
+  REQUIRE(result.echoSigils >= 1);
+  REQUIRE(result.aetherShards >= 2);
+  REQUIRE(result.arcaneDust >= 5);
+  REQUIRE_FALSE(result.log.empty());
+
+  // A novice player with low stats cannot survive deep floors
+  ed::DungeonPlayerStats weakPlayer;
+  weakPlayer.maxHp = 200;
+  weakPlayer.attack = 20;
+  weakPlayer.defense = 5;
+  weakPlayer.speed = 10;
+
+  const auto weakResult = ed::simulateAbyssRun(weakPlayer, 0x12345ULL, 15);
+  REQUIRE(weakResult.isAbyss);
+  REQUIRE_FALSE(weakResult.cleared);
+  REQUIRE(weakResult.floorsCleared == 0);
 }

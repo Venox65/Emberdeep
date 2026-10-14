@@ -173,6 +173,57 @@ void mine(AppState& app, Vector2 clickPosition) {
   app.game.dirty = true;
 }
 
+void startBossCombat(AppState& app, std::size_t bossIndex, int stars, bool isEcho, int echoRank) {
+  if (bossIndex >= app.bosses.size()) return;
+  const auto& boss = app.bosses[bossIndex];
+  const auto playerStats = ed::calculatePlayerStats(app.game, app.inventory);
+
+  app.campaignAttempt = false;
+  app.inBossCombat = true;
+  app.bossCombatShowResults = false;
+  app.bossCombatRewardsClaimed = false;
+  app.bossCombatRewardGold = 0;
+  app.bossCombatRewardXp = 0;
+  app.bossCombatRewardSigils = 0;
+  app.bossCombatRewardLegendary.clear();
+  app.bossCombatLogIndex = 0;
+  app.bossCombatTimer = 0.0F;
+
+  app.bossCombatPlayerMaxHp = std::max<std::int64_t>(1, playerStats.maxHp);
+  app.bossCombatPlayerHp = app.bossCombatPlayerMaxHp;
+  app.bossCombatBossIndex = static_cast<int>(bossIndex);
+  app.bossCombatStars = stars;
+  app.bossCombatIsEcho = isEcho;
+  app.bossCombatEchoRank = echoRank;
+  app.bossCombatBossName = (isEcho ? "Echo of " : "") + boss.name;
+  app.bossCombatBossAbility = boss.abilityName;
+
+  const auto effBoss = ed::getEffectiveBossDef(boss, isEcho, echoRank);
+  const double bossHpStartMult = stars >= 3 ? 0.85 : (stars >= 2 ? 0.92 : 1.0);
+  app.bossCombatBossMaxHp = effBoss.maxHp;
+  app.bossCombatBossHp = std::max<std::int64_t>(1, static_cast<std::int64_t>(std::llround(effBoss.maxHp * bossHpStartMult)));
+
+  const std::uint64_t combatSeed =
+      (static_cast<std::uint64_t>(app.rng.next()) << 32) | app.rng.next();
+  app.bossCombatResult = ed::simulateBossCombat(playerStats, boss, stars, isEcho, echoRank, combatSeed);
+
+  app.bossBattleLog.clear();
+  if (stars >= 3) {
+    app.bossBattleLog.push_back("Minigame 3-Star Mastery! +30% Stats, Boss starts at 85% HP!");
+  } else if (stars >= 2) {
+    app.bossBattleLog.push_back("Minigame 2-Star Clear! +15% Stats, Boss starts at 92% HP!");
+  } else {
+    app.bossBattleLog.push_back("Minigame 1-Star Clear! Boss engaged in combat.");
+  }
+}
+
+void finishBossCombat(AppState& app) {
+  if (!app.inBossCombat) return;
+  app.inBossCombat = false;
+  app.bossCombatShowResults = false;
+  app.bossCombatRewardsClaimed = false;
+}
+
 void attemptCampaign(AppState& app) {
   const auto index = static_cast<std::size_t>(app.selectedBoss);
   if (!ed::isBossUnlocked(app.game, app.campaign, app.bosses, index)) {
@@ -181,22 +232,37 @@ void attemptCampaign(AppState& app) {
   }
 
   const auto& boss = app.bosses[index];
+
+  if (app.echoCampaignMode) {
+    const int effectiveEchoRank = std::max(1, app.game.player.echoRank);
+    const double echoMod = ed::echoDifficultyMultiplier(effectiveEchoRank);
+    const int scaledClearScore = static_cast<int>(std::llround(boss.clearScore * echoMod));
+    const bool cleared = (app.campaignScore >= scaledClearScore && app.campaignHeartsLost < 3);
+    if (!cleared) {
+      setNotice(app, "Echo Minigame Defeat. Needed " + std::to_string(scaledClearScore) + " score.");
+      app.campaignAttempt = false;
+      return;
+    }
+    int stars = 1;
+    if (app.campaignHeartsLost == 0 && app.campaignScore >= static_cast<int>(scaledClearScore * 1.2)) {
+      stars = 3;
+    } else if (app.campaignHeartsLost <= 1) {
+      stars = 2;
+    }
+    startBossCombat(app, index, stars, true, effectiveEchoRank);
+    return;
+  }
+
   const auto outcome = ed::evaluateBossAttempt(
       app.game, app.campaign, app.bosses, index,
       {app.campaignScore, app.campaignHeartsLost, true, 0.0});
   if (!outcome.cleared) {
-    setNotice(app, "Defeat. Raise the score with Space or mouse clicks.");
+    setNotice(app, "Minigame Defeat. Raise score or preserve hearts.");
     app.campaignAttempt = false;
     return;
   }
-  ed::applyBossOutcome(app.game, outcome);
-  std::string message = "Cleared " + boss.name + " with " + std::to_string(outcome.stars) +
-                        " star(s)!";
-  if (!outcome.legendaryId.empty()) {
-    message += " Legendary earned.";
-  }
-  setNotice(app, message);
-  app.campaignAttempt = false;
+
+  startBossCombat(app, index, outcome.stars, false, 1);
 }
 
 void startCampaignAttempt(AppState& app) {
@@ -208,6 +274,10 @@ void startCampaignAttempt(AppState& app) {
   app.campaignAttempt = true;
   app.campaignScore = 0;
   app.campaignHeartsLost = 0;
+  if (app.echoCampaignMode) {
+    setNotice(app, "Echo Challenge: " + app.bosses[bossIndex].name + " (Rank " +
+                      std::to_string(std::max(1, app.game.player.echoRank)) + ")");
+  }
   const auto challenge = app.bosses[bossIndex].challenge;
   if (challenge == ed::BossChallenge::FrenzyDig) {
     app.frenzyDig = ed::startFrenzyDig(
@@ -257,7 +327,6 @@ void startCampaignAttempt(AppState& app) {
 }
 
 void runDungeon(AppState& app) {
-  const auto& zone = app.zones[static_cast<std::size_t>(app.selectedZone)];
   const auto playerStats = ed::calculatePlayerStats(app.game, app.inventory);
   ed::DungeonPlayerStats stats;
   stats.maxHp = playerStats.maxHp;
@@ -267,6 +336,34 @@ void runDungeon(AppState& app) {
   stats.critChanceBasisPoints = playerStats.critChanceBasisPoints;
   stats.critDamageBasisPoints = playerStats.critDamageBasisPoints;
 
+  if (app.abyssDungeonMode) {
+    const auto result = ed::simulateAbyssRun(stats, 0xAB755ULL + app.game.player.clicks);
+    app.dungeonResult = result;
+    app.inDungeonCombat = true;
+    app.dungeonShowResults = false;
+    app.dungeonLogIndex = 0;
+    app.dungeonCombatTimer = 0.0F;
+    app.dungeonPlayerMaxHp = stats.maxHp;
+    app.dungeonPlayerHp = stats.maxHp;
+    app.dungeonEnemies.clear();
+    app.dungeonBattleLog.clear();
+    app.dungeonBattleLog.push_back("Descended into The Abyss!");
+
+    // Apply Abyss rewards earned across cleared floors
+    app.game.player.gold += static_cast<int>(result.gold);
+    app.game.player.goldEarnedThisRun += static_cast<int>(result.gold);
+    ed::applyXp(app.game, result.xp);
+    app.game.player.arcaneDust += result.arcaneDust;
+    app.game.player.echoSigils += result.echoSigils;
+    app.game.player.aetherShards += result.aetherShards;
+    if (result.floorsCleared > app.game.player.abyssBestFloor) {
+      app.game.player.abyssBestFloor = result.floorsCleared;
+    }
+    app.game.dirty = true;
+    return;
+  }
+
+  const auto& zone = app.zones[static_cast<std::size_t>(app.selectedZone)];
   const auto result =
       ed::simulateDungeonRun(stats, zone, 0xD00DULL + app.game.player.clicks);
 

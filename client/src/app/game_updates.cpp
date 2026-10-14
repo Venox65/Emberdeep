@@ -148,10 +148,77 @@ void updateEffects(AppState& app, float delta) {
     }
   }
 
+  if (app.inBossCombat) {
+    if (app.bossCombatShowResults) {
+      if (IsKeyPressed(KEY_SPACE) || IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_ENTER)) {
+        app.inBossCombat = false;
+        app.bossCombatShowResults = false;
+      }
+      return;
+    }
+
+    const float stepDuration = (IsKeyDown(KEY_SPACE) || IsKeyDown(KEY_ENTER)) ? 0.06F : 0.32F;
+    app.bossCombatTimer += delta;
+    if (app.bossCombatTimer >= stepDuration) {
+      app.bossCombatTimer = 0.0F;
+      if (app.bossCombatLogIndex < app.bossCombatResult.events.size()) {
+        const auto& ev = app.bossCombatResult.events[app.bossCombatLogIndex++];
+        app.bossCombatPlayerHp = ev.playerHp;
+        app.bossCombatBossHp = ev.bossHp;
+        app.bossBattleLog.push_back(ev.description);
+
+        if (ev.isCrit) {
+          app.shake = 0.3F;
+        } else if (ev.type == ed::BossCombatEventType::BossAbility) {
+          app.shake = 0.25F;
+        }
+
+        if (app.bossCombatLogIndex >= app.bossCombatResult.events.size()) {
+          app.bossCombatShowResults = true;
+          if (!app.bossCombatRewardsClaimed) {
+            app.bossCombatRewardsClaimed = true;
+            if (app.bossCombatResult.victory) {
+              const auto index = static_cast<std::size_t>(app.bossCombatBossIndex);
+              if (index < app.bosses.size()) {
+                const auto& boss = app.bosses[index];
+                if (app.bossCombatIsEcho) {
+                  const int oldRank = app.game.player.echoRank;
+                  ed::recordEchoBossClear(app.game, static_cast<int>(index));
+                  const int goldReward = ed::echoBossRewardGold(boss.firstClearGold, std::max(1, oldRank));
+                  const int sigilReward = ed::echoBossRewardSigils(std::max(1, oldRank));
+                  app.bossCombatRewardGold = goldReward;
+                  app.bossCombatRewardSigils = sigilReward;
+                  app.bossCombatRewardXp = 0;
+                  app.bossCombatRewardLegendary.clear();
+                  app.game.player.gold += goldReward;
+                  app.game.player.goldEarnedThisRun += goldReward;
+                  app.game.player.echoSigils += sigilReward;
+                  app.game.dirty = true;
+                } else {
+                  const auto outcome = ed::evaluateBossAttempt(
+                      app.game, app.campaign, app.bosses, index,
+                      {app.campaignScore, app.campaignHeartsLost, true, 0.0});
+                  ed::applyBossOutcome(app.game, outcome);
+                  app.bossCombatRewardGold = outcome.goldReward;
+                  app.bossCombatRewardXp = outcome.xpReward;
+                  app.bossCombatRewardSigils = 0;
+                  app.bossCombatRewardLegendary = outcome.legendaryId;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
   if (app.screen == Screen::Campaign && app.campaignAttempt) {
+    const float minigameDelta = (app.echoCampaignMode)
+        ? delta * static_cast<float>(ed::echoDifficultyMultiplier(std::max(1, app.game.player.echoRank)))
+        : delta;
     const auto challenge = app.bosses[static_cast<std::size_t>(app.selectedBoss)].challenge;
     if (challenge == ed::BossChallenge::FrenzyDig) {
-      ed::updateFrenzyDig(app.frenzyDig, delta, app.rng);
+      ed::updateFrenzyDig(app.frenzyDig, minigameDelta, app.rng);
       if (app.frenzyDig.finished) {
         const auto stats = ed::calculatePlayerStats(app.game, app.inventory);
         app.campaignScore = ed::frenzyDigScore(app.frenzyDig, stats.attack);
@@ -162,7 +229,7 @@ void updateEffects(AppState& app, float delta) {
                           (IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_A));
       const float moveY = (IsKeyDown(KEY_DOWN) || IsKeyDown(KEY_S)) -
                           (IsKeyDown(KEY_UP) || IsKeyDown(KEY_W));
-      ed::updateSoulDodge(app.soulDodge, delta, moveX, moveY,
+      ed::updateSoulDodge(app.soulDodge, minigameDelta, moveX, moveY,
                           IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT), 10);
       if (app.soulDodge.finished) {
         app.campaignScore = ed::soulDodgeScore(app.soulDodge);
@@ -171,7 +238,7 @@ void updateEffects(AppState& app, float delta) {
       }
     } else if (challenge == ed::BossChallenge::FiveTrials) {
       if (app.fiveTrials.phase == 1) {
-        app.fiveTrials.burstElapsed += delta;
+        app.fiveTrials.burstElapsed += minigameDelta;
         if (app.fiveTrials.burstElapsed >= 6.0F) {
           const bool passed = app.fiveTrials.burstTaps >= 48;
           ed::advanceFiveTrials(app.fiveTrials, passed, passed ? 0 : 1);
@@ -181,8 +248,8 @@ void updateEffects(AppState& app, float delta) {
           }
         }
       } else if (app.fiveTrials.phase == 2) {
-        app.fiveTrials.phaseElapsed += delta;
-        ed::updateCinderDance(app.cinderDance, delta);
+        app.fiveTrials.phaseElapsed += minigameDelta;
+        ed::updateCinderDance(app.cinderDance, minigameDelta);
         if (app.fiveTrials.phaseElapsed >= 30.0F) {
           app.cinderDance.finished = true;
           app.cinderDance.failed = app.cinderDance.groove == 0;
@@ -196,7 +263,7 @@ void updateEffects(AppState& app, float delta) {
           }
         }
       } else if (app.fiveTrials.phase == 3) {
-        ed::updateParryDuel(app.parryDuel, delta, app.rng);
+        ed::updateParryDuel(app.parryDuel, minigameDelta, app.rng);
         if (app.parryDuel.finished) {
           ed::advanceFiveTrials(app.fiveTrials, app.parryDuel.cleared,
                                 app.parryDuel.heartsLost);
@@ -210,7 +277,7 @@ void updateEffects(AppState& app, float delta) {
                             (IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_A));
         const float moveY = (IsKeyDown(KEY_DOWN) || IsKeyDown(KEY_S)) -
                             (IsKeyDown(KEY_UP) || IsKeyDown(KEY_W));
-        ed::updateSoulDodge(app.soulDodge, delta, moveX, moveY,
+        ed::updateSoulDodge(app.soulDodge, minigameDelta, moveX, moveY,
                             IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT), 10);
         if (app.soulDodge.finished) {
           ed::advanceFiveTrials(app.fiveTrials, app.soulDodge.cleared,
@@ -218,7 +285,7 @@ void updateEffects(AppState& app, float delta) {
           if (app.fiveTrials.phase == 5) app.crownStrike = ed::startCrownStrike();
         }
       } else {
-        ed::updateCrownStrike(app.crownStrike, delta);
+        ed::updateCrownStrike(app.crownStrike, minigameDelta);
         if (app.crownStrike.finished) {
           ed::advanceFiveTrials(app.fiveTrials, app.crownStrike.cleared,
                                 app.crownStrike.misses);
@@ -230,7 +297,7 @@ void updateEffects(AppState& app, float delta) {
         attemptCampaign(app);
       }
     } else if (challenge == ed::BossChallenge::StarTrace) {
-      ed::updateStarTrace(app.starTrace, delta, app.rng);
+      ed::updateStarTrace(app.starTrace, minigameDelta, app.rng);
       if (app.starTrace.finished) {
         const auto stats = ed::calculatePlayerStats(app.game, app.inventory);
         app.campaignScore = ed::starTraceScore(app.starTrace, stats.speed);
@@ -238,7 +305,7 @@ void updateEffects(AppState& app, float delta) {
         attemptCampaign(app);
       }
     } else if (challenge == ed::BossChallenge::Heartpierce) {
-      ed::updateHeartpierce(app.heartpierce, delta,
+      ed::updateHeartpierce(app.heartpierce, minigameDelta,
                             IsKeyDown(KEY_SPACE) || IsMouseButtonDown(MOUSE_BUTTON_LEFT));
       if (app.heartpierce.finished) {
         app.campaignScore = ed::heartpierceScore(app.heartpierce);
@@ -246,7 +313,7 @@ void updateEffects(AppState& app, float delta) {
         attemptCampaign(app);
       }
     } else if (challenge == ed::BossChallenge::BoneDuel) {
-      ed::updateBoneDuel(app.boneDuel, delta);
+      ed::updateBoneDuel(app.boneDuel, minigameDelta);
       if (app.boneDuel.finished) {
         const auto stats = ed::calculatePlayerStats(app.game, app.inventory);
         app.campaignScore = ed::boneDuelScore(app.boneDuel, stats.attack, stats.pierce);
@@ -255,7 +322,7 @@ void updateEffects(AppState& app, float delta) {
         attemptCampaign(app);
       }
     } else if (challenge == ed::BossChallenge::CinderDance) {
-      ed::updateCinderDance(app.cinderDance, delta);
+      ed::updateCinderDance(app.cinderDance, minigameDelta);
       if (app.cinderDance.finished) {
         const auto stats = ed::calculatePlayerStats(app.game, app.inventory);
         app.campaignScore = ed::cinderDanceScore(app.cinderDance, stats.attack) / 100;
@@ -264,7 +331,7 @@ void updateEffects(AppState& app, float delta) {
       }
     } else if (challenge == ed::BossChallenge::HeadHunt) {
       const auto stats = ed::calculatePlayerStats(app.game, app.inventory);
-      ed::updateHeadHunt(app.headHunt, delta, app.rng,
+      ed::updateHeadHunt(app.headHunt, minigameDelta, app.rng,
                          static_cast<double>(stats.speed) / 100.0);
       if (app.headHunt.finished) {
         app.campaignScore = ed::headHuntScore(app.headHunt, stats.attack);
@@ -272,7 +339,7 @@ void updateEffects(AppState& app, float delta) {
         attemptCampaign(app);
       }
     } else if (challenge == ed::BossChallenge::ParryDuel) {
-      ed::updateParryDuel(app.parryDuel, delta, app.rng);
+      ed::updateParryDuel(app.parryDuel, minigameDelta, app.rng);
       if (app.parryDuel.finished) {
         const auto stats = ed::calculatePlayerStats(app.game, app.inventory);
         app.campaignScore = ed::parryDuelScore(app.parryDuel, stats.attack);
@@ -280,7 +347,7 @@ void updateEffects(AppState& app, float delta) {
         attemptCampaign(app);
       }
     } else if (challenge == ed::BossChallenge::RuneRecall) {
-      ed::updateRuneRecall(app.runeRecall, delta, app.rng);
+      ed::updateRuneRecall(app.runeRecall, minigameDelta, app.rng);
       if (app.runeRecall.finished) {
         const auto stats = ed::calculatePlayerStats(app.game, app.inventory);
         app.campaignScore = ed::runeRecallScore(app.runeRecall, stats.focusBasisPoints / 100);

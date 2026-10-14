@@ -16,7 +16,10 @@ const GearPiece* equippedPiece(const InventoryState& inventory, const std::strin
 }
 
 double upgradeMultiplier(const GearPiece& piece) {
-  return 1.0 + 0.08 * piece.upgradeLevel;
+  if (piece.upgradeLevel <= 10) {
+    return 1.0 + 0.08 * piece.upgradeLevel;
+  }
+  return 1.8 + 0.10 * (piece.upgradeLevel - 10);
 }
 
 double tierMultiplier(int tier) {

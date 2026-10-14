@@ -96,8 +96,8 @@ void drawNavigation(const AppState& app) {
 }
 
 void drawMineScreen(const AppState& app) {
-  drawTextCentered("THE EMBERDEEP", 110, 34, Color{224, 187, 106, 255});
-  drawTextCentered("Layer: " + app.layers[static_cast<std::size_t>(app.layerIndex)].name, 148, 20,
+  drawTextCentered("THE EMBERDEEP", 106, 32, Color{224, 187, 106, 255});
+  drawTextCentered("Layer: " + app.layers[static_cast<std::size_t>(app.layerIndex)].name, 140, 18,
                    Color{190, 190, 205, 255});
   DrawText("Q / E change layer", 28, 116, 16, Color{140, 140, 153, 255});
 
@@ -108,9 +108,9 @@ void drawMineScreen(const AppState& app) {
     DrawText("[ / ] adjust depth   |   T auto-advance", 28, 138, 14, Color{124, 247, 224, 210});
 
     const Vector2 mouse = GetMousePosition();
-    const Rectangle minusBtn{410, 172, 34, 24};
-    const Rectangle plusBtn{835, 172, 34, 24};
-    const Rectangle autoBtn{885, 172, 95, 24};
+    const Rectangle minusBtn{410, 164, 34, 22};
+    const Rectangle plusBtn{835, 164, 34, 22};
+    const Rectangle autoBtn{885, 164, 95, 22};
 
     const int maxDepth = std::max(1, app.game.player.deepestDepth + 1);
     const bool canDec = (app.deepStrataDepth > 0);
@@ -118,34 +118,30 @@ void drawMineScreen(const AppState& app) {
 
     const bool hoverMinus = CheckCollisionPointRec(mouse, minusBtn);
     DrawRectangleRounded(minusBtn, 0.25F, 4, canDec ? (hoverMinus ? Color{70, 78, 100, 255} : Color{50, 54, 70, 255}) : Color{34, 34, 44, 255});
-    DrawText("-", 423, 175, 18, canDec ? RAYWHITE : Color{110, 110, 125, 255});
+    DrawText("-", 423, 166, 18, canDec ? RAYWHITE : Color{110, 110, 125, 255});
 
     const bool hoverPlus = CheckCollisionPointRec(mouse, plusBtn);
     DrawRectangleRounded(plusBtn, 0.25F, 4, canInc ? (hoverPlus ? Color{70, 78, 100, 255} : Color{50, 54, 70, 255}) : Color{34, 34, 44, 255});
-    DrawText("+", 847, 175, 18, canInc ? RAYWHITE : Color{110, 110, 125, 255});
+    DrawText("+", 847, 166, 18, canInc ? RAYWHITE : Color{110, 110, 125, 255});
 
     const bool hoverAuto = CheckCollisionPointRec(mouse, autoBtn);
     DrawRectangleRounded(autoBtn, 0.25F, 4, app.deepStrataAutoAdvance ? (hoverAuto ? Color{55, 95, 75, 255} : Color{40, 75, 58, 255}) : (hoverAuto ? Color{65, 65, 78, 255} : Color{48, 48, 58, 255}));
-    DrawText(app.deepStrataAutoAdvance ? "Auto: ON" : "Auto: OFF", 897, 177, 14, app.deepStrataAutoAdvance ? Color{160, 255, 200, 255} : Color{180, 180, 195, 255});
+    DrawText(app.deepStrataAutoAdvance ? "Auto: ON" : "Auto: OFF", 897, 168, 14, app.deepStrataAutoAdvance ? Color{160, 255, 200, 255} : Color{180, 180, 195, 255});
 
     if (app.deepStrataDepth == 0) {
-      drawTextCentered("Standard Vault (Depth 0)", 175, 17, Color{190, 190, 205, 255});
+      drawTextCentered("Standard Vault (Depth 0)", 167, 16, Color{190, 190, 205, 255});
     } else {
-      drawTextCentered("DEEP STRATA: DEPTH " + std::to_string(app.deepStrataDepth), 174, 18, Color{124, 247, 224, 255});
+      drawTextCentered("DEEP STRATA: DEPTH " + std::to_string(app.deepStrataDepth), 166, 17, Color{124, 247, 224, 255});
     }
   }
 
   const float hpRatio = static_cast<float>(app.block.currentHp) /
                         static_cast<float>(std::max<std::int64_t>(1, app.block.maxHp));
-  DrawRectangle(320, 205, 640, 26, Color{52, 46, 56, 255});
-  DrawRectangle(320, 205, static_cast<int>(640.0F * hpRatio), 26, Color{190, 75, 66, 255});
-  drawTextCentered(std::to_string(app.block.currentHp) + " / " + std::to_string(app.block.maxHp),
-                   209, 17, RAYWHITE);
 
   const float pulse = 1.0F + app.blockPulse * 0.45F;
   const int blockSize = static_cast<int>(220.0F * pulse);
   const int blockX = 640 - blockSize / 2;
-  const int blockY = 305 - blockSize / 2;
+  const int blockY = 335 - blockSize / 2;
   const Color blockColor = materialColor(app.blockSpec);
   std::string baseName = app.blockSpec.materialId;
   std::replace(baseName.begin(), baseName.end(), '-', '_');
@@ -168,15 +164,21 @@ void drawMineScreen(const AppState& app) {
                           static_cast<float>(blockSize), static_cast<float>(blockSize)},
                          5.0F, Color{239, 225, 189, 255});
   }
-  DrawCircle(590, 302, 13, Color{255, 255, 255, 130});
-  DrawCircle(690, 352, 9, Color{255, 255, 255, 100});
-  DrawText(app.blockSpec.materialName.c_str(), blockX + 18, blockY + blockSize + 18, 23, RAYWHITE);
-  DrawText(rarityName(app.blockSpec.rarity), blockX + 18, blockY + blockSize + 48, 16,
-           Color{255, 210, 106, 255});
-  DrawText(("Hardness " + std::to_string(app.block.hardness) + "   XP " +
-            std::to_string(app.block.xp))
-               .c_str(),
-           445, 520, 18, Color{179, 179, 193, 255});
+  DrawCircle(590, 332, 13, Color{255, 255, 255, 130});
+  DrawCircle(690, 382, 9, Color{255, 255, 255, 100});
+
+  // Healthbar drawn clearly above the block (unobstructed by block and on top)
+  DrawRectangleRounded({320, 194, 640, 24}, 0.25F, 4, Color{45, 40, 52, 255});
+  DrawRectangleRounded({320, 194, std::max(0.0F, 640.0F * hpRatio), 24}, 0.25F, 4, Color{195, 70, 60, 255});
+  DrawRectangleRoundedLines({320, 194, 640, 24}, 0.25F, 4, Color{90, 80, 105, 255});
+  drawTextCentered(std::to_string(app.block.currentHp) + " / " + std::to_string(app.block.maxHp),
+                   198, 16, RAYWHITE);
+
+  const int textStartY = blockY + blockSize + 10;
+  drawTextCentered(app.blockSpec.materialName, textStartY, 22, RAYWHITE);
+  drawTextCentered(rarityName(app.blockSpec.rarity), textStartY + 24, 15, Color{255, 210, 106, 255});
+  drawTextCentered("Hardness " + std::to_string(app.block.hardness) + "   XP " + std::to_string(app.block.xp),
+                   textStartY + 45, 16, Color{179, 179, 193, 255});
 
   if (strataUnlocked) {
     if (app.blockSpec.depth > 0) {
@@ -187,16 +189,17 @@ void drawMineScreen(const AppState& app) {
                               "   |   Aetherium: x" + std::to_string(app.blockSpec.dropMultiplier) +
                               "   |   Shards: " + std::to_string(app.game.player.aetherShards) +
                               "   |   Best: Depth " + std::to_string(app.game.player.deepestDepth);
-      drawTextCentered(depthInfo, 546, 16, Color{124, 247, 224, 255});
+      drawTextCentered(depthInfo, textStartY + 68, 15, Color{124, 247, 224, 255});
     } else {
       std::string depthInfo = "Deep Strata Unlocked! Press ] or click [+] to descend  (Best: Depth " +
                               std::to_string(app.game.player.deepestDepth) +
                               "   |   Shards: " + std::to_string(app.game.player.aetherShards) + ")";
-      drawTextCentered(depthInfo, 546, 16, Color{160, 220, 210, 255});
+      drawTextCentered(depthInfo, textStartY + 68, 15, Color{160, 220, 210, 255});
     }
+    drawTextCentered("Click the block or press SPACE to mine", textStartY + 92, 18, Color{235, 232, 213, 255});
+  } else {
+    drawTextCentered("Click the block or press SPACE to mine", textStartY + 72, 18, Color{235, 232, 213, 255});
   }
-
-  DrawText("Click the block or press SPACE to mine", 440, 572, 20, Color{235, 232, 213, 255});
 }
 
 void drawCampaignScreen(const AppState& app) {
@@ -216,46 +219,264 @@ void drawCampaignScreen(const AppState& app) {
   DrawRectangle(0, 610, 1280, 110, Color{22, 18, 27, 220});
   DrawCircle(180, 600, 70, Color{31, 24, 31, 255});
   DrawCircle(1080, 605, 90, Color{31, 24, 31, 255});
-  drawTextCentered("CAMPAIGN", 108, 34, Color{224, 187, 106, 255});
-  DrawText("A / D select. ENTER starts. Space/click plays. BACKSPACE gives up.", 30, 155, 17,
-           Color{174, 174, 187, 255});
+
+  if (app.inBossCombat) {
+    if (app.bossCombatShowResults) {
+      drawTextCentered("BOSS COMBAT RESULTS", 108, 34, Color{224, 187, 106, 255});
+      DrawRectangleRounded({310, 180, 660, 360}, 0.08F, 10, Color{45, 42, 58, 255});
+      DrawRectangleRoundedLines({310, 180, 660, 360}, 0.08F, 10,
+                                app.bossCombatResult.victory
+                                    ? (app.bossCombatIsEcho ? Color{218, 160, 255, 255} : Color{245, 215, 110, 255})
+                                    : Color{220, 80, 80, 255});
+
+      if (app.bossCombatResult.victory) {
+        std::string winTitle = app.bossCombatIsEcho ? "ECHO BANISHED!" : "VICTORY! BOSS VANQUISHED!";
+        drawTextCentered(winTitle, 205, 28, app.bossCombatIsEcho ? Color{235, 190, 255, 255} : Color{122, 235, 175, 255});
+        std::string starStr = "Minigame Performance: " + std::string(app.bossCombatStars, '*') +
+                              " (" + std::to_string(app.bossCombatStars) + " Star" + (app.bossCombatStars > 1 ? "s)" : ")");
+        drawTextCentered(starStr, 245, 18, Color{255, 225, 130, 255});
+
+        int lootY = 285;
+        DrawText("Combat Spoils:", 350, lootY, 20, RAYWHITE);
+        lootY += 32;
+        if (app.bossCombatRewardGold > 0) {
+          DrawText(("+ " + std::to_string(app.bossCombatRewardGold) + " Gold").c_str(), 370, lootY, 18, Color{248, 211, 89, 255});
+          lootY += 26;
+        }
+        if (app.bossCombatRewardXp > 0) {
+          DrawText(("+ " + std::to_string(app.bossCombatRewardXp) + " XP").c_str(), 370, lootY, 18, Color{130, 215, 255, 255});
+          lootY += 26;
+        }
+        if (app.bossCombatRewardSigils > 0) {
+          DrawText(("+ " + std::to_string(app.bossCombatRewardSigils) + " Echo Sigils").c_str(), 370, lootY, 18, Color{218, 160, 255, 255});
+          lootY += 26;
+        }
+        if (!app.bossCombatRewardLegendary.empty()) {
+          DrawText(("+ Legendary Unlocked: " + app.bossCombatRewardLegendary).c_str(), 370, lootY, 18, Color{255, 175, 80, 255});
+          lootY += 26;
+        }
+      } else {
+        drawTextCentered("DEFEATED IN COMBAT", 205, 28, Color{245, 80, 80, 255});
+        std::string fallMsg = "You were struck down by " + app.bossCombatBossName + ".";
+        drawTextCentered(fallMsg, 245, 18, Color{220, 200, 200, 255});
+
+        drawTextCentered(("Boss HP Remaining: " + std::to_string(app.bossCombatBossHp) + " / " +
+                          std::to_string(app.bossCombatBossMaxHp)).c_str(), 290, 19, Color{255, 140, 140, 255});
+
+        drawTextCentered("Your current gear & stats were insufficient to survive.", 340, 17, Color{190, 185, 200, 255});
+        drawTextCentered("Tip: Upgrade weapons & armor (+11+ Mythic), socket gems, or get 3 stars!", 370, 15, Color{235, 215, 150, 255});
+      }
+
+      const Rectangle contBtn{490, 470, 300, 44};
+      DrawRectangleRounded(contBtn, 0.2F, 4, Color{60, 58, 78, 255});
+      DrawRectangleRoundedLines(contBtn, 0.2F, 4, Color{180, 175, 205, 255});
+      drawTextCentered("CONTINUE [SPACE / ENTER]", 482, 18, WHITE);
+      return;
+    }
+
+    const std::string arenaTitle = app.bossCombatIsEcho
+        ? "ECHO BOSS COMBAT: " + app.bossCombatBossName
+        : "BOSS COMBAT: " + app.bossCombatBossName;
+    drawTextCentered(arenaTitle, 108, 30, app.bossCombatIsEcho ? Color{225, 170, 255, 255} : Color{245, 215, 110, 255});
+
+    std::string starBonusDesc;
+    if (app.bossCombatStars >= 3) {
+      starBonusDesc = "Minigame Mastery: +30% Combat Stats | Boss HP -15%";
+    } else if (app.bossCombatStars >= 2) {
+      starBonusDesc = "Minigame Precision: +15% Combat Stats | Boss HP -8%";
+    } else {
+      starBonusDesc = "Minigame Cleared: Standard Combat Parameters";
+    }
+    drawTextCentered(starBonusDesc, 145, 15, Color{210, 200, 160, 255});
+
+    // PLAYER CARD (Left)
+    DrawRectangleRounded({120, 180, 360, 250}, 0.08F, 8, Color{42, 45, 62, 255});
+    DrawRectangleRoundedLines({120, 180, 360, 250}, 0.08F, 8, Color{85, 110, 165, 255});
+    DrawText("CHAMPION", 150, 198, 22, Color{235, 235, 245, 255});
+    DrawText(("Level " + std::to_string(app.game.player.level)).c_str(), 390, 202, 16, Color{180, 180, 200, 255});
+
+    const float playerHpPct = std::clamp(static_cast<float>(app.bossCombatPlayerHp) /
+                                         static_cast<float>(std::max<std::int64_t>(1, app.bossCombatPlayerMaxHp)), 0.0F, 1.0F);
+    DrawRectangleRounded({150, 235, 300, 22}, 0.3F, 4, Color{30, 25, 35, 255});
+    DrawRectangleRounded({150, 235, 300.0F * playerHpPct, 22}, 0.3F, 4, Color{70, 190, 95, 255});
+    std::string playerHpText = std::to_string(app.bossCombatPlayerHp) + " / " + std::to_string(app.bossCombatPlayerMaxHp);
+    DrawText(playerHpText.c_str(), 160, 238, 15, WHITE);
+
+    const auto pStats = ed::calculatePlayerStats(app.game, app.inventory);
+    DrawText(("Attack: " + std::to_string(pStats.attack)).c_str(), 150, 275, 17, Color{245, 165, 120, 255});
+    DrawText(("Defense: " + std::to_string(pStats.defense)).c_str(), 150, 305, 17, Color{130, 200, 245, 255});
+    DrawText(("Speed: " + std::to_string(pStats.speed)).c_str(), 150, 335, 17, Color{180, 235, 160, 255});
+    DrawText(("Crit: " + std::to_string(pStats.critChanceBasisPoints / 100) + "%").c_str(), 310, 275, 17, Color{245, 225, 120, 255});
+    DrawText(("Pierce: " + std::to_string(pStats.pierce)).c_str(), 310, 305, 17, Color{215, 165, 245, 255});
+
+    // BOSS CARD (Right)
+    DrawRectangleRounded({800, 180, 360, 250}, 0.08F, 8, app.bossCombatIsEcho ? Color{52, 36, 68, 255} : Color{58, 38, 42, 255});
+    DrawRectangleRoundedLines({800, 180, 360, 250}, 0.08F, 8, app.bossCombatIsEcho ? Color{195, 120, 255, 255} : Color{205, 90, 90, 255});
+    DrawText(app.bossCombatBossName.c_str(), 830, 198, 20, app.bossCombatIsEcho ? Color{245, 210, 255, 255} : Color{255, 220, 220, 255});
+
+    const float bossHpPct = std::clamp(static_cast<float>(app.bossCombatBossHp) /
+                                       static_cast<float>(std::max<std::int64_t>(1, app.bossCombatBossMaxHp)), 0.0F, 1.0F);
+    DrawRectangleRounded({830, 235, 300, 22}, 0.3F, 4, Color{30, 25, 35, 255});
+    DrawRectangleRounded({830, 235, 300.0F * bossHpPct, 22}, 0.3F, 4, Color{225, 65, 75, 255});
+    std::string bossHpText = std::to_string(app.bossCombatBossHp) + " / " + std::to_string(app.bossCombatBossMaxHp);
+    DrawText(bossHpText.c_str(), 840, 238, 15, WHITE);
+
+    DrawText(("Special: [" + app.bossCombatBossAbility + "]").c_str(), 830, 280, 17, Color{245, 185, 130, 255});
+    DrawText("Unleashes 150% damage every 3 turns", 830, 310, 14, Color{190, 180, 190, 255});
+    if (app.bossCombatIsEcho) {
+      DrawText(("Empowered by Echo Rank " + std::to_string(app.bossCombatEchoRank)).c_str(), 830, 340, 15, Color{218, 160, 255, 255});
+    }
+
+    drawTextCentered("VS", 270, 36, Color{255, 215, 120, 255});
+
+    // BATTLE LOG (Bottom Center)
+    DrawRectangleRounded({200, 455, 880, 165}, 0.08F, 8, Color{24, 25, 36, 230});
+    DrawRectangleRoundedLines({200, 455, 880, 165}, 0.08F, 8, Color{70, 72, 95, 255});
+
+    int logY = 466;
+    int startLog = std::max(0, static_cast<int>(app.bossBattleLog.size()) - 5);
+    for (std::size_t i = startLog; i < app.bossBattleLog.size(); ++i) {
+      const auto& line = app.bossBattleLog[i];
+      Color lineCol = RAYWHITE;
+      if (line.find("CRITICAL") != std::string::npos) lineCol = Color{255, 225, 90, 255};
+      else if (line.find("unleashes") != std::string::npos || line.find("devastating") != std::string::npos) lineCol = Color{255, 135, 135, 255};
+      else if (line.find("vanquished") != std::string::npos || line.find("banished") != std::string::npos) lineCol = Color{130, 245, 170, 255};
+      else if (line.find("struck down") != std::string::npos) lineCol = Color{245, 100, 100, 255};
+      else if (line.find("Mastery") != std::string::npos) lineCol = Color{218, 160, 255, 255};
+      DrawText(line.c_str(), 230, logY, 17, lineCol);
+      logY += 27;
+    }
+
+    DrawText("HOLD SPACE or ENTER to fast-forward  |  ESC to forfeit", 430, 634, 16, Color{170, 170, 190, 255});
+    return;
+  }
+
+  const bool echoUnlocked = ed::isEchoCampaignUnlocked(app.game);
+  if (app.echoCampaignMode) {
+    drawTextCentered(("ECHO CAMPAIGN — RANK " + std::to_string(std::max(1, app.game.player.echoRank))).c_str(), 108, 34, Color{218, 160, 255, 255});
+  } else {
+    drawTextCentered("CAMPAIGN", 108, 34, Color{224, 187, 106, 255});
+  }
+
+  if (app.game.player.echoSigils > 0 || echoUnlocked) {
+    DrawText(("Echo Sigils: " + std::to_string(app.game.player.echoSigils)).c_str(), 1020, 108, 18, Color{218, 160, 255, 255});
+  }
+
+  if (echoUnlocked && !app.campaignAttempt) {
+    DrawText("A / D select. ENTER starts. E / TAB toggles mode. BACKSPACE gives up.", 30, 135, 15,
+             Color{174, 174, 187, 255});
+    // Mode toggle tabs
+    const Rectangle stdTab{400, 155, 220, 36};
+    const Rectangle echoTab{660, 155, 220, 36};
+    DrawRectangleRounded(stdTab, 0.2F, 4, !app.echoCampaignMode ? Color{112, 76, 45, 255} : Color{50, 48, 62, 255});
+    DrawRectangleRoundedLines(stdTab, 0.2F, 4, !app.echoCampaignMode ? Color{224, 187, 106, 255} : Color{80, 78, 95, 255});
+    DrawText("STANDARD", 460, 165, 16, !app.echoCampaignMode ? WHITE : Color{180, 180, 190, 255});
+
+    DrawRectangleRounded(echoTab, 0.2F, 4, app.echoCampaignMode ? Color{90, 45, 120, 255} : Color{50, 48, 62, 255});
+    DrawRectangleRoundedLines(echoTab, 0.2F, 4, app.echoCampaignMode ? Color{218, 160, 255, 255} : Color{80, 78, 95, 255});
+    DrawText(("ECHO (RANK " + std::to_string(std::max(1, app.game.player.echoRank)) + ")").c_str(), 690, 165, 16,
+             app.echoCampaignMode ? WHITE : Color{180, 180, 190, 255});
+  } else {
+    DrawText("A / D select. ENTER starts. Space/click plays. BACKSPACE gives up.", 30, 155, 17,
+             Color{174, 174, 187, 255});
+  }
+
   const auto& boss = app.bosses[static_cast<std::size_t>(app.selectedBoss)];
   const bool unlocked = ed::isBossUnlocked(app.game, app.campaign, app.bosses,
                                            static_cast<std::size_t>(app.selectedBoss));
-  DrawRectangleRounded({260, 215, 760, 280}, 0.08F, 10,
-                       unlocked ? Color{61, 55, 70, 255} : Color{43, 43, 53, 255});
-  DrawText(boss.name.c_str(), 300, 250, 27, unlocked ? RAYWHITE : Color{120, 120, 130, 255});
-  DrawText(("Required level: " + std::to_string(boss.minLevel)).c_str(), 300, 298, 18,
-           Color{182, 182, 194, 255});
-  DrawText(("Clear score: " + std::to_string(boss.clearScore) + "   2*: " +
-            std::to_string(boss.twoStarScore) + "   3*: " + std::to_string(boss.threeStarScore))
-               .c_str(),
-           300, 330, 18, Color{204, 175, 111, 255});
-  DrawText(("Best stars: " +
-            std::to_string(app.campaign.bestStars[static_cast<std::size_t>(app.selectedBoss)]))
-               .c_str(),
-           300, 370, 18, Color{255, 218, 100, 255});
+
+  if (app.echoCampaignMode) {
+    const Color cardBg = unlocked ? Color{52, 38, 68, 255} : Color{38, 32, 45, 255};
+    DrawRectangleRounded({260, 215, 760, 280}, 0.08F, 10, cardBg);
+    DrawRectangleRoundedLines({260, 215, 760, 280}, 0.08F, 10, Color{180, 110, 245, 255});
+
+    DrawText(("Echo of " + boss.name).c_str(), 300, 245, 27, unlocked ? Color{245, 225, 255, 255} : Color{130, 120, 140, 255});
+    const bool clearedThisRank = ed::isEchoBossCleared(app.game, app.selectedBoss);
+    if (clearedThisRank) {
+      DrawText(("Status: BANISHED (Cleared at Echo Rank " + std::to_string(std::max(1, app.game.player.echoRank)) + ")").c_str(),
+               300, 288, 17, Color{150, 255, 170, 255});
+    } else {
+      DrawText("Status: ACTIVE ECHO (Awaiting banishment)", 300, 288, 17, Color{255, 210, 130, 255});
+    }
+
+    const double echoMod = ed::echoDifficultyMultiplier(std::max(1, app.game.player.echoRank));
+    const int targetScore = static_cast<int>(std::llround(boss.clearScore * echoMod));
+    DrawText(("Echo Difficulty: x" + std::to_string(echoMod).substr(0, 4) +
+              "   Target Score: " + std::to_string(targetScore)).c_str(),
+             300, 326, 18, Color{218, 170, 255, 255});
+
+    const int goldReward = ed::echoBossRewardGold(boss.firstClearGold, std::max(1, app.game.player.echoRank));
+    const int sigilReward = ed::echoBossRewardSigils(std::max(1, app.game.player.echoRank));
+    DrawText(("Echo Rewards: +" + std::to_string(goldReward) + " Gold, +" +
+              std::to_string(sigilReward) + " Echo Sigil(s)").c_str(),
+             300, 365, 18, Color{255, 220, 120, 255});
+  } else {
+    DrawRectangleRounded({260, 215, 760, 280}, 0.08F, 10,
+                         unlocked ? Color{61, 55, 70, 255} : Color{43, 43, 53, 255});
+    DrawText(boss.name.c_str(), 300, 250, 27, unlocked ? RAYWHITE : Color{120, 120, 130, 255});
+    DrawText(("Required level: " + std::to_string(boss.minLevel)).c_str(), 300, 298, 18,
+             Color{182, 182, 194, 255});
+    DrawText(("Clear score: " + std::to_string(boss.clearScore) + "   2*: " +
+              std::to_string(boss.twoStarScore) + "   3*: " + std::to_string(boss.threeStarScore))
+                 .c_str(),
+             300, 330, 18, Color{204, 175, 111, 255});
+    DrawText(("Best stars: " +
+              std::to_string(app.campaign.bestStars[static_cast<std::size_t>(app.selectedBoss)]))
+                 .c_str(),
+             300, 370, 18, Color{255, 218, 100, 255});
+  }
 
   if (app.campaignAttempt) {
     DrawRectangle(0, 145, 1280, 520, Color{13, 17, 31, 255});
-    DrawCircle(140, 280, 190, Color{35, 49, 71, 255});
-    DrawCircle(1140, 300, 230, Color{48, 35, 61, 255});
+    DrawCircle(140, 280, 190, app.echoCampaignMode ? Color{45, 28, 65, 255} : Color{35, 49, 71, 255});
+    DrawCircle(1140, 300, 230, app.echoCampaignMode ? Color{55, 25, 75, 255} : Color{48, 35, 61, 255});
     for (int x = 40; x < 1280; x += 150) {
       DrawTriangle({static_cast<float>(x), 145},
                    {static_cast<float>(x + 30), 145},
                    {static_cast<float>(x + 15), 230},
                    Color{8, 12, 24, 255});
     }
-    drawTextCentered(boss.name + " — BATTLE ARENA", 170, 26,
-                     Color{255, 224, 145, 255});
+    const std::string arenaTitle = app.echoCampaignMode
+        ? "ECHO OF " + boss.name + " — RANK " + std::to_string(std::max(1, app.game.player.echoRank))
+        : boss.name + " — BATTLE ARENA";
+    drawTextCentered(arenaTitle, 170, 26,
+                     app.echoCampaignMode ? Color{235, 180, 255, 255} : Color{255, 224, 145, 255});
   }
 
   drawCampaignMinigames(app, boss);
 }
 
 void drawDungeonScreen(AppState& app) {
+  const bool abyssUnlocked = (app.game.player.bossesCleared >= 10 || app.game.player.ascensions > 0 || app.game.player.abyssBestFloor > 0);
+
   if (app.inDungeonCombat) {
     if (app.dungeonShowResults) {
+      if (app.dungeonResult.isAbyss) {
+        drawTextCentered("ABYSS RESULTS", 108, 34, Color{218, 160, 255, 255});
+        DrawRectangleRounded({310, 175, 660, 375}, 0.08F, 10, Color{45, 32, 60, 255});
+        DrawRectangleRoundedLines({310, 175, 660, 375}, 0.08F, 10, Color{190, 110, 255, 255});
+
+        const int reachedFloor = app.dungeonResult.floorsCleared + (app.dungeonResult.cleared ? 0 : 1);
+        drawTextCentered(("Deepest Floor Reached: Floor " + std::to_string(reachedFloor)).c_str(), 198, 25, Color{235, 205, 255, 255});
+
+        if (app.dungeonResult.floorsCleared >= app.game.player.abyssBestFloor && app.dungeonResult.floorsCleared > 0) {
+          drawTextCentered("★ NEW PERSONAL BEST! ★", 232, 18, Color{255, 215, 0, 255});
+        }
+
+        DrawText(("Floors Cleared: " + std::to_string(app.dungeonResult.floorsCleared)).c_str(), 350, 265, 19, RAYWHITE);
+        DrawText(("Gold Earned: +" + std::to_string(app.dungeonResult.gold)).c_str(), 350, 298, 19, Color{248, 211, 89, 255});
+        DrawText(("XP Earned: +" + std::to_string(app.dungeonResult.xp)).c_str(), 350, 331, 19, Color{200, 140, 255, 255});
+        DrawText(("Arcane Dust: +" + std::to_string(app.dungeonResult.arcaneDust)).c_str(), 350, 364, 19, Color{130, 210, 255, 255});
+        DrawText(("Echo Sigils: +" + std::to_string(app.dungeonResult.echoSigils)).c_str(), 350, 397, 19, Color{235, 170, 255, 255});
+        DrawText(("Aether Shards: +" + std::to_string(app.dungeonResult.aetherShards)).c_str(), 350, 430, 19, Color{150, 230, 255, 255});
+        if (app.dungeonResult.gemFound) {
+          DrawText("Bonus Gem Discovered!", 350, 463, 19, Color{255, 215, 100, 255});
+        }
+
+        DrawText("Press SPACE, ENTER or ESC to Finish", 440, 570, 20, Color{174, 174, 187, 255});
+        return;
+      }
+
       drawTextCentered("DUNGEON RESULTS", 108, 34, Color{224, 187, 106, 255});
       DrawRectangleRounded({340, 200, 600, 300}, 0.08F, 10, Color{53, 52, 65, 255});
 
@@ -277,7 +498,11 @@ void drawDungeonScreen(AppState& app) {
       return;
     }
 
-    drawTextCentered("DUNGEON COMBAT", 108, 34, Color{224, 187, 106, 255});
+    if (app.dungeonResult.isAbyss) {
+      drawTextCentered("THE ABYSS COMBAT", 108, 34, Color{218, 160, 255, 255});
+    } else {
+      drawTextCentered("DUNGEON COMBAT", 108, 34, Color{224, 187, 106, 255});
+    }
 
     DrawRectangleRounded({100, 200, 200, 180}, 0.1F, 8, Color{53, 52, 65, 255});
     DrawText("Player", 150, 390, 20, RAYWHITE);
@@ -288,7 +513,8 @@ void drawDungeonScreen(AppState& app) {
     for (int i = 0; i < numEnemies; ++i) {
       auto& e = app.dungeonEnemies[i];
       if (e.hp > 0) {
-        DrawRectangleRounded({static_cast<float>(startX + i * 220), 200, 180, 180}, 0.1F, 8, Color{70, 40, 40, 255});
+        DrawRectangleRounded({static_cast<float>(startX + i * 220), 200, 180, 180}, 0.1F, 8,
+                             app.dungeonResult.isAbyss ? Color{65, 30, 75, 255} : Color{70, 40, 40, 255});
         DrawText(e.name.c_str(), startX + i * 220 + 20, 390, 20, RAYWHITE);
         DrawText((std::to_string(e.hp) + " / " + std::to_string(e.maxHp)).c_str(), startX + i * 220 + 20, 420, 18, RED);
       }
@@ -307,16 +533,50 @@ void drawDungeonScreen(AppState& app) {
   }
 
   drawTextCentered("DUNGEON", 108, 34, Color{224, 187, 106, 255});
-  DrawText("Select zone with A / D. Press ENTER to start run.", 30, 155, 17,
-           Color{174, 174, 187, 255});
-  const auto& zone = app.zones[static_cast<std::size_t>(app.selectedZone)];
-  DrawRectangleRounded({280, 230, 720, 220}, 0.08F, 10, Color{53, 52, 65, 255});
-  DrawText(zone.name.c_str(), 330, 270, 30, RAYWHITE);
-  DrawText(("Zone tier " + std::to_string(zone.tier)).c_str(), 330, 315, 19,
-           Color{204, 175, 111, 255});
-  DrawText("5 floors  |  auto-battle  |  gold, XP and trophies", 330, 355, 18,
-           Color{182, 182, 194, 255});
-  DrawText("ENTER to run", 330, 405, 20, Color{122, 217, 255, 255});
+
+  if (abyssUnlocked) {
+    DrawText("A / D select zone. ENTER starts. E / TAB toggles mode.", 30, 135, 15,
+             Color{174, 174, 187, 255});
+    // Mode toggle tabs
+    const Rectangle stdTab{400, 155, 220, 36};
+    const Rectangle abyssTab{660, 155, 220, 36};
+    DrawRectangleRounded(stdTab, 0.2F, 4, !app.abyssDungeonMode ? Color{112, 76, 45, 255} : Color{50, 48, 62, 255});
+    DrawRectangleRoundedLines(stdTab, 0.2F, 4, !app.abyssDungeonMode ? Color{224, 187, 106, 255} : Color{80, 78, 95, 255});
+    DrawText("EXPEDITIONS", 455, 165, 16, !app.abyssDungeonMode ? WHITE : Color{180, 180, 190, 255});
+
+    DrawRectangleRounded(abyssTab, 0.2F, 4, app.abyssDungeonMode ? Color{90, 45, 120, 255} : Color{50, 48, 62, 255});
+    DrawRectangleRoundedLines(abyssTab, 0.2F, 4, app.abyssDungeonMode ? Color{218, 160, 255, 255} : Color{80, 78, 95, 255});
+    DrawText("THE ABYSS", 725, 165, 16, app.abyssDungeonMode ? WHITE : Color{180, 180, 190, 255});
+  } else {
+    DrawText("Select zone with A / D. Press ENTER to start run.", 30, 155, 17,
+             Color{174, 174, 187, 255});
+  }
+
+  if (app.abyssDungeonMode) {
+    DrawRectangleRounded({260, 215, 760, 280}, 0.08F, 10, Color{45, 32, 60, 255});
+    DrawRectangleRoundedLines({260, 215, 760, 280}, 0.08F, 10, Color{190, 110, 255, 255});
+
+    DrawText("THE ABYSS — ENDLESS GAUNTLET", 300, 245, 27, Color{245, 225, 255, 255});
+    DrawText(("Personal Best: Floor " + std::to_string(app.game.player.abyssBestFloor)).c_str(),
+             300, 290, 19, Color{255, 215, 90, 255});
+    DrawText("Infinite subterranean floors. Enemies grow +8% stronger each floor.",
+             300, 325, 17, Color{210, 190, 225, 255});
+    DrawText("Milestones: Void Bosses appear every 10 floors with Sigils & Shards.",
+             300, 355, 17, Color{180, 220, 255, 255});
+    DrawText("Rewards: High Gold, XP, Arcane Dust, Echo Sigils, Aether Shards.",
+             300, 385, 17, Color{200, 240, 180, 255});
+
+    DrawText("Press ENTER to descend into The Abyss", 300, 440, 20, Color{218, 160, 255, 255});
+  } else {
+    const auto& zone = app.zones[static_cast<std::size_t>(app.selectedZone)];
+    DrawRectangleRounded({280, 230, 720, 220}, 0.08F, 10, Color{53, 52, 65, 255});
+    DrawText(zone.name.c_str(), 330, 270, 30, RAYWHITE);
+    DrawText(("Zone tier " + std::to_string(zone.tier)).c_str(), 330, 315, 19,
+             Color{204, 175, 111, 255});
+    DrawText("5 floors  |  auto-battle  |  gold, XP and trophies", 330, 355, 18,
+             Color{182, 182, 194, 255});
+    DrawText("ENTER to run", 330, 405, 20, Color{122, 217, 255, 255});
+  }
 }
 
 void drawGemHollowScreen(AppState& app) {
@@ -551,6 +811,25 @@ void drawProfileScreen(const AppState& app) {
   DrawRectangleRoundedLines({40, 160, 440, 505}, 0.05F, 8, Color{60, 58, 80, 255});
 
   // Paperdoll / Avatar
+  bool hasMythicEquipped = false;
+  for (const auto& piece : app.inventory.gear) {
+    if (piece.upgradeLevel >= 11) {
+      if (piece.itemId == app.inventory.equipped.pickaxeId ||
+          piece.itemId == app.inventory.equipped.helmId ||
+          piece.itemId == app.inventory.equipped.chestplateId ||
+          piece.itemId == app.inventory.equipped.gauntletsId ||
+          piece.itemId == app.inventory.equipped.bootsId ||
+          piece.itemId == app.inventory.equipped.amuletId) {
+        hasMythicEquipped = true;
+        break;
+      }
+    }
+  }
+  if (hasMythicEquipped) {
+    const float pulse = (std::sin(static_cast<float>(GetTime()) * 3.5F) + 1.0F) * 0.5F;
+    DrawCircleLines(105, 255, 50.0F + pulse * 4.0F, ColorAlpha(Color{205, 130, 255, 255}, 0.5F + 0.5F * pulse));
+  }
+
   DrawCircle(105, 225, 34, Color{204, 158, 104, 255});
   DrawRectangleRounded({82, 264, 46, 68}, 0.2F, 4, Color{84, 105, 143, 255});
 
@@ -591,9 +870,12 @@ void drawProfileScreen(const AppState& app) {
   DrawText(("Bosses Cleared: " + std::to_string(player.bossesCleared) + " / 10").c_str(), 55, 528, 15, RAYWHITE);
   DrawText(("Echo Rank: " + std::to_string(player.echoRank)).c_str(), 55, 552, 15, RAYWHITE);
   DrawText(("Deepest Depth: " + std::to_string(player.deepestDepth)).c_str(), 55, 576, 15, RAYWHITE);
+  DrawText(("Echo Sigils: " + std::to_string(player.echoSigils)).c_str(), 55, 600, 15, Color{218, 160, 255, 255});
+
   DrawText(("Abyss Best Floor: " + std::to_string(player.abyssBestFloor)).c_str(), 265, 528, 15, RAYWHITE);
   DrawText(("Ascensions: " + std::to_string(player.ascensions)).c_str(), 265, 552, 15, RAYWHITE);
   DrawText(("Blocks Broken: " + std::to_string(player.blocksBroken)).c_str(), 265, 576, 15, RAYWHITE);
+  DrawText(("Aether Shards: " + std::to_string(player.aetherShards)).c_str(), 265, 600, 15, Color{124, 247, 224, 255});
 
   // RIGHT PANEL: Ascension & Ember Perks
   DrawRectangleRounded({505, 160, 735, 505}, 0.05F, 8, Color{36, 35, 48, 255});
@@ -767,7 +1049,7 @@ void syncGearScroll(AppState& app) {
 
 void drawInventoryScreen(const AppState& app) {
   drawTextCentered("INVENTORY", 108, 34, Color{224, 187, 106, 255});
-  DrawText("Mouse wheel or W/S scroll inventory. A/D select gear.", 70, 138, 15, Color{174, 174, 187, 255});
+  DrawText("Mouse wheel or W/S scroll. A/D select. E equip. U upgrade. G/R gems.", 70, 138, 15, Color{174, 174, 187, 255});
   BeginScissorMode(0, 160, 1280, 500);
   const int offset = app.inventoryScroll;
   DrawText("Resources", 70, 175 - offset, 24, Color{235, 224, 191, 255});
@@ -775,7 +1057,12 @@ void drawInventoryScreen(const AppState& app) {
   if (app.game.player.aetherShards > 0) {
     DrawText(("Aether Shards: " + std::to_string(app.game.player.aetherShards)).c_str(),
              resHeaderX, 178 - offset, 18, Color{124, 247, 224, 255});
-    resHeaderX += 220;
+    resHeaderX += 200;
+  }
+  if (app.game.player.echoSigils > 0) {
+    DrawText(("Echo Sigils: " + std::to_string(app.game.player.echoSigils)).c_str(),
+             resHeaderX, 178 - offset, 18, Color{218, 160, 255, 255});
+    resHeaderX += 190;
   }
   if (app.game.player.arcaneDust > 0) {
     DrawText(("Arcane Dust: " + std::to_string(app.game.player.arcaneDust)).c_str(),
@@ -830,18 +1117,58 @@ void drawInventoryScreen(const AppState& app) {
       const int column = static_cast<int>(index % 3);
       const int row = static_cast<int>(index / 3);
       const bool selected = static_cast<int>(index) == app.selectedGear;
+      const bool isMythic = (piece.upgradeLevel >= 11);
+      Color cardBg = selected ? Color{112, 76, 45, 255} : (isMythic ? Color{58, 42, 72, 255} : Color{52, 52, 67, 255});
       DrawRectangleRounded({70.0F + static_cast<float>(column) * 370.0F,
                             static_cast<float>(y + row * rowHeight - offset), cardWidth, cardHeight},
-                           0.12F, 6, selected ? Color{112, 76, 45, 255} : Color{52, 52, 67, 255});
-      DrawText((piece.name + " +" + std::to_string(piece.upgradeLevel)).c_str(),
+                           0.12F, 6, cardBg);
+      if (isMythic) {
+        const float pulse = (std::sin(static_cast<float>(GetTime()) * 4.0F) + 1.0F) * 0.5F;
+        const Color glow = ColorAlpha(Color{205, 140, 255, 255}, 0.5F + 0.5F * pulse);
+        DrawRectangleRoundedLines({70.0F + static_cast<float>(column) * 370.0F,
+                                   static_cast<float>(y + row * rowHeight - offset), cardWidth, cardHeight},
+                                  0.12F, 6, glow);
+      }
+      std::string nameLabel = piece.name + " +" + std::to_string(piece.upgradeLevel);
+      if (isMythic) {
+        nameLabel += " [MYTHIC]";
+      }
+      DrawText(nameLabel.c_str(),
                84 + column * 370, y + row * rowHeight + 8 - offset, 17,
-               RAYWHITE);
-      DrawText(("Tier " + std::to_string(piece.tier) + " | " + piece.slot).c_str(),
+               isMythic ? Color{245, 215, 255, 255} : RAYWHITE);
+      std::string subLabel = "Tier " + std::to_string(piece.tier) + " | " + piece.slot;
+      if (piece.sockets > 0) {
+        subLabel += " | Sockets: " + std::to_string(piece.socketedGems.size()) + "/" + std::to_string(piece.sockets);
+      }
+      DrawText(subLabel.c_str(),
                84 + column * 370, y + row * rowHeight + 30 - offset, 13,
                Color{180, 180, 192, 255});
     }
   }
   EndScissorMode();
+
+  if (app.selectedGear >= 0 && app.selectedGear < static_cast<int>(app.inventory.gear.size())) {
+    const auto& piece = app.inventory.gear[static_cast<std::size_t>(app.selectedGear)];
+    std::string statusText;
+    if (piece.upgradeLevel >= 20) {
+      statusText = piece.name + " +" + std::to_string(piece.upgradeLevel) + "  [MAX MYTHIC LEVEL]";
+    } else if (piece.upgradeLevel >= 10) {
+      if (ed::isMythicUpgradeUnlocked(app.game)) {
+        statusText = "Mythic Upgrade [U] -> +" + std::to_string(piece.upgradeLevel + 1) + ": " +
+                     std::to_string(ed::upgradeGoldCost(piece)) + "g, " +
+                     std::to_string(ed::upgradeDustCost(piece)) + " dust, " +
+                     std::to_string(ed::upgradeAetherShardCost(piece)) + " shard(s), " +
+                     std::to_string(ed::upgradeEchoSigilCost(piece)) + " sigil(s)";
+      } else {
+        statusText = piece.name + " +10  [MAX STANDARD] (Mythic upgrades unlock after Boss 10)";
+      }
+    } else {
+      statusText = "Upgrade [U] -> +" + std::to_string(piece.upgradeLevel + 1) + ": " +
+                   std::to_string(ed::upgradeGoldCost(piece)) + "g, " +
+                   std::to_string(ed::upgradeDustCost(piece)) + " dust";
+    }
+    DrawText(statusText.c_str(), 70, 672, 16, Color{225, 210, 160, 255});
+  }
 }
 
 void drawCraftingScreen(const AppState& app) {

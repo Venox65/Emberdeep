@@ -15,7 +15,13 @@ DeepStrataBlock deepStrataBlock(int depth, std::int64_t baseHp, std::int64_t bas
   DeepStrataBlock block;
   block.depth = safeDepth;
   block.hp = static_cast<std::int64_t>(std::llround(baseHp * std::pow(2.6, depthValue)));
-  block.xp = static_cast<std::int64_t>(std::llround(baseXp * std::pow(2.4, depthValue)));
+  if (safeDepth == 0) {
+    block.xp = baseXp;
+  } else if (safeDepth == 1) {
+    block.xp = static_cast<std::int64_t>(std::llround(baseXp * 2.4));
+  } else {
+    block.xp = static_cast<std::int64_t>(std::llround(baseXp * 2.4 * std::pow(1.35, depthValue - 1.0)));
+  }
   block.oreQuantity = std::max<std::int64_t>(1, static_cast<std::int64_t>(std::llround(1.0 + 0.5 * depthValue)));
   block.aetherShardChanceBasisPoints = std::min(10000, safeDepth * 250);
   return block;

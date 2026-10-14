@@ -105,9 +105,9 @@ void handleInput(AppState& app) {
       const Vector2 mouse = GetMousePosition();
       bool buttonClicked = false;
       if (strataUnlocked) {
-        const Rectangle minusBtn{410, 172, 34, 24};
-        const Rectangle plusBtn{835, 172, 34, 24};
-        const Rectangle autoBtn{885, 172, 95, 24};
+        const Rectangle minusBtn{410, 164, 34, 22};
+        const Rectangle plusBtn{835, 164, 34, 22};
+        const Rectangle autoBtn{885, 164, 95, 22};
         const int maxDepth = std::max(1, app.game.player.deepestDepth + 1);
         if (CheckCollisionPointRec(mouse, minusBtn)) {
           if (app.deepStrataDepth > 0) {
@@ -127,7 +127,7 @@ void handleInput(AppState& app) {
           buttonClicked = true;
         }
       }
-      if (!buttonClicked && CheckCollisionPointRec(mouse, {400, 190, 480, 330})) {
+      if (!buttonClicked && CheckCollisionPointRec(mouse, {400, 220, 480, 260})) {
         mine(app, mouse);
       }
     }
@@ -172,12 +172,28 @@ void handleInput(AppState& app) {
     if (!app.inventory.gear.empty() && IsKeyPressed(KEY_U)) {
       auto& piece = app.inventory.gear[static_cast<std::size_t>(app.selectedGear)];
       if (ed::upgradeGear(app.game, piece)) {
-        setNotice(app, "Gear upgraded.");
+        if (piece.upgradeLevel >= 11) {
+          setNotice(app, "Mythic upgrade successful! (" + piece.name + " +" +
+                             std::to_string(piece.upgradeLevel) + ")");
+        } else {
+          setNotice(app, "Gear upgraded to +" + std::to_string(piece.upgradeLevel) + ".");
+        }
       } else {
-        const int cost = ed::upgradeGoldCost(piece);
-        setNotice(app, cost == 0 ? "This gear is already at maximum level."
-                                 : "Need " + std::to_string(cost) + " gold and " +
-                                       std::to_string(piece.upgradeLevel + 1) + " Arcane Dust.");
+        if (piece.upgradeLevel >= ed::maxGearUpgradeLevel(app.game)) {
+          setNotice(app, "This gear is already at maximum level (" +
+                             std::to_string(piece.upgradeLevel) + ").");
+        } else if (piece.upgradeLevel >= 10 && !ed::isMythicUpgradeUnlocked(app.game)) {
+          setNotice(app, "Mythic upgrades (+11 to +20) require defeating The Hollow King.");
+        } else {
+          const int gold = ed::upgradeGoldCost(piece);
+          const int dust = ed::upgradeDustCost(piece);
+          const int shards = ed::upgradeAetherShardCost(piece);
+          const int sigils = ed::upgradeEchoSigilCost(piece);
+          std::string costMsg = "Need " + std::to_string(gold) + " gold, " + std::to_string(dust) + " dust";
+          if (shards > 0) costMsg += ", " + std::to_string(shards) + " Aether Shard(s)";
+          if (sigils > 0) costMsg += ", " + std::to_string(sigils) + " Echo Sigil(s)";
+          setNotice(app, costMsg + ".");
+        }
       }
     }
     if (!app.inventory.gear.empty() && IsKeyPressed(KEY_E)) {
@@ -305,6 +321,53 @@ void handleInput(AppState& app) {
       }
     }
   } else if (app.screen == Screen::Campaign) {
+    if (app.inBossCombat) {
+      if (app.bossCombatShowResults) {
+        if (IsKeyPressed(KEY_SPACE) || IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_ESCAPE) ||
+            (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && CheckCollisionPointRec(GetMousePosition(), {540, 560, 200, 45}))) {
+          finishBossCombat(app);
+        }
+      } else {
+        if (IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_BACKSPACE)) {
+          finishBossCombat(app);
+          setNotice(app, "Retreated from boss combat.");
+        }
+      }
+      return;
+    }
+    if (!app.campaignAttempt && (IsKeyPressed(KEY_E) || IsKeyPressed(KEY_TAB))) {
+      if (ed::isEchoCampaignUnlocked(app.game)) {
+        app.echoCampaignMode = !app.echoCampaignMode;
+        app.campaignScore = 0;
+        app.campaignIntro = false;
+        setNotice(app, app.echoCampaignMode ? "Echo Campaign active! Face empowered boss echoes."
+                                            : "Standard Campaign active.");
+      } else {
+        setNotice(app, "Echo Campaign unlocks after defeating The Hollow King (Boss 10).");
+      }
+    }
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && !app.campaignAttempt) {
+      const Vector2 mouse = GetMousePosition();
+      if (CheckCollisionPointRec(mouse, {380, 160, 240, 36})) {
+        if (app.echoCampaignMode) {
+          app.echoCampaignMode = false;
+          app.campaignScore = 0;
+          app.campaignIntro = false;
+          setNotice(app, "Standard Campaign active.");
+        }
+      } else if (CheckCollisionPointRec(mouse, {660, 160, 240, 36})) {
+        if (!app.echoCampaignMode) {
+          if (ed::isEchoCampaignUnlocked(app.game)) {
+            app.echoCampaignMode = true;
+            app.campaignScore = 0;
+            app.campaignIntro = false;
+            setNotice(app, "Echo Campaign active! Face empowered boss echoes.");
+          } else {
+            setNotice(app, "Echo Campaign unlocks after defeating The Hollow King (Boss 10).");
+          }
+        }
+      }
+    }
     if (IsKeyPressed(KEY_A)) {
       const int nextBoss = std::max(0, app.selectedBoss - 1);
       if (nextBoss != app.selectedBoss &&
@@ -359,27 +422,55 @@ void handleInput(AppState& app) {
     }
   } else if (app.screen == Screen::Dungeon) {
     if (app.inDungeonCombat) return;
-    if (IsKeyPressed(KEY_A)) {
-      const int nextZone = std::max(0, app.selectedZone - 1);
-      if (nextZone != app.selectedZone && !dungeonUnlocked(app, nextZone)) {
-        setNotice(app, dungeonLockReason(app, nextZone));
-      } else {
-        app.selectedZone = nextZone;
+
+    const bool abyssUnlocked = (app.game.player.bossesCleared >= 10 || app.game.player.ascensions > 0 || app.game.player.abyssBestFloor > 0);
+    if (abyssUnlocked) {
+      if (IsKeyPressed(KEY_E) || IsKeyPressed(KEY_TAB)) {
+        app.abyssDungeonMode = !app.abyssDungeonMode;
+        setNotice(app, app.abyssDungeonMode ? "The Abyss selected (Endless Mode)." : "Standard Expeditions selected.");
+      }
+      if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+        const Vector2 mouse = GetMousePosition();
+        const Rectangle stdTab{400, 155, 220, 36};
+        const Rectangle abyssTab{660, 155, 220, 36};
+        if (CheckCollisionPointRec(mouse, stdTab)) {
+          app.abyssDungeonMode = false;
+          setNotice(app, "Standard Expeditions selected.");
+        } else if (CheckCollisionPointRec(mouse, abyssTab)) {
+          app.abyssDungeonMode = true;
+          setNotice(app, "The Abyss selected (Endless Mode).");
+        }
       }
     }
-    if (IsKeyPressed(KEY_D)) {
-      const int nextZone = std::min(static_cast<int>(app.zones.size()) - 1, app.selectedZone + 1);
-      if (!dungeonUnlocked(app, nextZone)) {
-        setNotice(app, dungeonLockReason(app, nextZone));
-      } else {
-        app.selectedZone = nextZone;
+
+    if (!app.abyssDungeonMode) {
+      if (IsKeyPressed(KEY_A)) {
+        const int nextZone = std::max(0, app.selectedZone - 1);
+        if (nextZone != app.selectedZone && !dungeonUnlocked(app, nextZone)) {
+          setNotice(app, dungeonLockReason(app, nextZone));
+        } else {
+          app.selectedZone = nextZone;
+        }
+      }
+      if (IsKeyPressed(KEY_D)) {
+        const int nextZone = std::min(static_cast<int>(app.zones.size()) - 1, app.selectedZone + 1);
+        if (!dungeonUnlocked(app, nextZone)) {
+          setNotice(app, dungeonLockReason(app, nextZone));
+        } else {
+          app.selectedZone = nextZone;
+        }
       }
     }
+
     if (IsKeyPressed(KEY_ENTER)) {
-      if (!dungeonUnlocked(app, app.selectedZone)) {
-        setNotice(app, dungeonLockReason(app, app.selectedZone));
-      } else {
+      if (app.abyssDungeonMode) {
         runDungeon(app);
+      } else {
+        if (!dungeonUnlocked(app, app.selectedZone)) {
+          setNotice(app, dungeonLockReason(app, app.selectedZone));
+        } else {
+          runDungeon(app);
+        }
       }
     }
   } else if (app.screen == Screen::Profile) {

@@ -251,5 +251,218 @@ DungeonRunResult simulateDungeonRun(const DungeonPlayerStats& player,
   return result;
 }
 
+DungeonRunResult simulateAbyssRun(const DungeonPlayerStats& player,
+                                  std::uint64_t seed,
+                                  int maxFloors) {
+  Pcg32 rng(seed);
+  DungeonRunResult result;
+  result.isAbyss = true;
+  std::int64_t playerHp = std::max<std::int64_t>(1, player.maxHp);
+  int poisonRounds = 0;
+
+  struct EnemyInstance {
+    int id;
+    std::string name;
+    std::string ability;
+    std::int64_t maxHp;
+    std::int64_t hp;
+    std::int64_t attack;
+    std::int64_t defense;
+    std::int64_t speed;
+    std::int64_t gold;
+    int abilityCooldown;
+    int frenzyRounds;
+    bool guarded;
+    bool defeated;
+    bool isBoss;
+  };
+
+  const std::vector<std::string> normalNames = {
+      "Abyssal Stalker", "Void Fiend", "Shadow Revenant",
+      "Dread Leech", "Nether Wraith", "Abyss Gargoyle", "Void Cultist"
+  };
+  const std::vector<std::string> normalAbilities = {"poison", "frenzy", "guard", "heal"};
+
+  const int totalFloors = std::max(1, maxFloors);
+
+  for (int floor = 1; floor <= totalFloors; ++floor) {
+    result.log.push_back({DungeonEventType::FloorStart, "Abyss Floor " + std::to_string(floor), floor, 0, 0, false});
+    const bool miniBossFloor = (floor % 10 == 0);
+    const int enemyCount = miniBossFloor ? 1 : static_cast<int>(rng.nextRange(1, 3));
+
+    const double floorMult = std::pow(1.08, static_cast<double>(floor - 1));
+
+    std::vector<EnemyInstance> enemies;
+    for (int i = 0; i < enemyCount; ++i) {
+      std::string eName;
+      std::string eAbility;
+      if (miniBossFloor) {
+        if (floor == 10) eName = "Abyssal Gatekeeper";
+        else if (floor == 20) eName = "Void Leviathan";
+        else if (floor == 30) eName = "Dread Sovereign";
+        else if (floor == 40) eName = "Nether Devourer";
+        else if (floor == 50) eName = "Chaos Harbinger";
+        else eName = "Abyssal Titan Prime (" + std::to_string(floor) + "F)";
+        eAbility = (floor % 20 == 0) ? "frenzy" : "guard";
+      } else {
+        eName = normalNames[rng.nextRange(0, static_cast<std::uint32_t>(normalNames.size() - 1))];
+        eAbility = normalAbilities[rng.nextRange(0, static_cast<std::uint32_t>(normalAbilities.size() - 1))];
+      }
+
+      const double bossMultiplier = miniBossFloor ? 2.5 : 1.0;
+      const std::int64_t eMaxHp = scaledValue(105000.0 * floorMult, bossMultiplier);
+      const std::int64_t eAttack = scaledValue(7200.0 * floorMult, miniBossFloor ? 1.35 : 1.0);
+      const std::int64_t eDefense = scaledValue(3200.0 * floorMult, 1.0);
+      const std::int64_t eGold = scaledValue(600.0 * floorMult, miniBossFloor ? 3.0 : 1.0);
+      const std::int64_t eSpeed = 24 + std::min<std::int64_t>(16, floor / 3);
+
+      enemies.push_back({i, eName, eAbility, eMaxHp, eMaxHp, eAttack, eDefense, eSpeed, eGold, 0, 0, false, false, miniBossFloor});
+      result.log.push_back({DungeonEventType::EnemyAppear, eName, eMaxHp, eMaxHp, i, miniBossFloor});
+    }
+
+    auto countAlive = [&]() {
+      int count = 0;
+      for (const auto& e : enemies) {
+        if (!e.defeated) count++;
+      }
+      return count;
+    };
+
+    int floorRounds = 0;
+    while (countAlive() > 0 && playerHp > 0 && floorRounds < 200) {
+      ++floorRounds;
+      ++result.rounds;
+
+      auto getTarget = [&]() -> EnemyInstance* {
+        for (auto& e : enemies) {
+          if (!e.defeated) return &e;
+        }
+        return nullptr;
+      };
+
+      auto playerAttackTurn = [&]() {
+        EnemyInstance* target = getTarget();
+        if (!target) return;
+
+        const int variance = static_cast<int>(rng.nextRange(90, 110));
+        std::int64_t rawDamage = std::max<std::int64_t>(1, player.attack * variance / 100);
+        bool crit = false;
+        if (rng.nextRange(0, 9999) < static_cast<std::uint32_t>(std::clamp(player.critChanceBasisPoints, 0, 10000))) {
+          rawDamage = rawDamage * std::max(10000, player.critDamageBasisPoints) / 10000;
+          crit = true;
+        }
+        std::int64_t damage = std::max<std::int64_t>(1, (rawDamage * rawDamage) / (rawDamage + std::max<std::int64_t>(0, target->defense)));
+
+        if (target->guarded) {
+          damage /= 2;
+          target->guarded = false;
+        }
+        target->hp -= damage;
+        result.log.push_back({DungeonEventType::PlayerAttack, target->name, damage, std::max<std::int64_t>(0, target->hp), target->id, crit});
+
+        if (target->hp <= 0) {
+          target->defeated = true;
+          result.log.push_back({DungeonEventType::EnemyDefeated, target->name, target->gold, 0, target->id, false});
+          result.gold += target->gold;
+          result.xp += static_cast<int>(target->gold / 2);
+        }
+      };
+
+      auto enemiesTurn = [&]() {
+        for (auto& enemy : enemies) {
+          if (enemy.defeated || playerHp <= 0) continue;
+
+          if (enemy.abilityCooldown == 0 && rng.nextRange(0, 99) < 25) {
+            enemy.abilityCooldown = 3;
+            if (enemy.ability == "heal") {
+              const std::int64_t healAmt = enemy.maxHp / 5;
+              enemy.hp = std::min(enemy.maxHp, enemy.hp + healAmt);
+              result.log.push_back({DungeonEventType::EnemyAbility, enemy.name, healAmt, enemy.hp, enemy.id, false});
+            } else if (enemy.ability == "frenzy") {
+              enemy.frenzyRounds = 2;
+              result.log.push_back({DungeonEventType::EnemyAbility, enemy.name, 0, 0, enemy.id, false});
+            } else if (enemy.ability == "poison") {
+              poisonRounds = 3;
+              result.log.push_back({DungeonEventType::EnemyAbility, enemy.name, 0, 0, enemy.id, false});
+            } else if (enemy.ability == "guard") {
+              enemy.guarded = true;
+              result.log.push_back({DungeonEventType::EnemyAbility, enemy.name, 0, 0, enemy.id, false});
+            }
+          } else {
+            if (enemy.abilityCooldown > 0) --enemy.abilityCooldown;
+            const int eVariance = static_cast<int>(rng.nextRange(90, 110));
+            std::int64_t atk = enemy.attack * eVariance / 100;
+            if (enemy.frenzyRounds > 0) {
+              atk = atk * 150 / 100;
+              --enemy.frenzyRounds;
+            }
+            const std::int64_t eDmg = std::max<std::int64_t>(1, (atk * atk) / (atk + std::max<std::int64_t>(0, player.defense)));
+            playerHp = std::max<std::int64_t>(0, playerHp - eDmg);
+            result.log.push_back({DungeonEventType::EnemyAttack, enemy.name, eDmg, playerHp, enemy.id, false});
+          }
+        }
+      };
+
+      const std::int64_t enemySpeed = enemies.empty() ? 0 : enemies[0].speed;
+      if (player.speed >= enemySpeed) {
+        playerAttackTurn();
+        if (countAlive() > 0 && playerHp > 0) {
+          enemiesTurn();
+        }
+      } else {
+        enemiesTurn();
+        if (playerHp > 0 && countAlive() > 0) {
+          playerAttackTurn();
+        }
+      }
+
+      if (poisonRounds > 0 && playerHp > 0) {
+        const std::int64_t pDmg = std::max<std::int64_t>(1, player.maxHp / 25);
+        playerHp = std::max<std::int64_t>(0, playerHp - pDmg);
+        --poisonRounds;
+        result.log.push_back({DungeonEventType::PoisonTick, "", pDmg, playerHp, 0, false});
+      }
+    }
+
+    if (playerHp <= 0 || floorRounds >= 200) {
+      result.log.push_back({DungeonEventType::PlayerDefeated, "", 0, 0, 0, false});
+      result.log.push_back({DungeonEventType::DungeonFailed, "", floor, 0, 0, false});
+      return result;
+    }
+
+    ++result.floorsCleared;
+    result.trophies += static_cast<int>(rng.nextRange(1, 2));
+
+    // Loot per floor
+    if (rng.nextRange(0, 99) < 25) {
+      result.arcaneDust += static_cast<int>(rng.nextRange(1, 3));
+    }
+    if (rng.nextRange(0, 99) < 15) {
+      result.aetherShards += 1;
+    }
+    if (rng.nextRange(0, 99) < 10) {
+      result.echoSigils += 1;
+    }
+
+    // Mini-boss milestone floor rewards
+    if (miniBossFloor) {
+      result.echoSigils += 1 + (floor / 20);
+      result.aetherShards += 2 + (floor / 20);
+      result.arcaneDust += 5 + (floor / 10);
+      result.trophies += 3;
+      if (rng.nextRange(0, 99) < 25) {
+        result.gemFound = true;
+      }
+      // 25% max HP recovery breather
+      playerHp = std::min(player.maxHp, playerHp + player.maxHp / 4);
+    }
+  }
+
+  result.cleared = true;
+  result.gold += result.gold / 2;
+  result.log.push_back({DungeonEventType::DungeonClear, "", result.gold, result.xp, result.trophies, result.gemFound});
+  return result;
+}
 
 } // namespace ed
+

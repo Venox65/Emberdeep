@@ -2,8 +2,10 @@
 
 #include <string>
 #include <vector>
+#include <cstdint>
 
 #include "ed/game_state.hpp"
+#include "ed/stats.hpp"
 
 namespace ed {
 
@@ -33,6 +35,11 @@ struct BossDef {
   int firstClearGold = 0;
   int firstClearXp = 0;
   std::string legendaryId;
+  std::int64_t maxHp = 100;
+  std::int64_t attack = 10;
+  std::int64_t defense = 0;
+  std::int64_t speed = 10;
+  std::string abilityName = "Strike";
 };
 
 struct BossAttempt {
@@ -56,6 +63,32 @@ struct CampaignState {
   std::vector<bool> cleared;
 };
 
+enum class BossCombatEventType {
+  CombatStart,
+  PlayerAttack,
+  BossAttack,
+  BossAbility,
+  PlayerDefeated,
+  BossDefeated
+};
+
+struct BossCombatEvent {
+  BossCombatEventType type = BossCombatEventType::CombatStart;
+  std::string description;
+  std::int64_t damage = 0;
+  std::int64_t playerHp = 0;
+  std::int64_t bossHp = 0;
+  bool isCrit = false;
+};
+
+struct BossCombatResult {
+  bool victory = false;
+  std::int64_t finalPlayerHp = 0;
+  std::int64_t finalBossHp = 0;
+  int rounds = 0;
+  std::vector<BossCombatEvent> events;
+};
+
 std::vector<BossDef> defaultBosses();
 CampaignState createCampaignState(std::size_t bossCount = 10);
 bool isBossUnlocked(const GameState& game,
@@ -68,5 +101,14 @@ BossOutcome evaluateBossAttempt(const GameState& game,
                                 std::size_t bossIndex,
                                 const BossAttempt& attempt);
 void applyBossOutcome(GameState& game, const BossOutcome& outcome);
+
+BossDef getEffectiveBossDef(const BossDef& boss, bool isEcho = false, int echoRank = 1);
+
+BossCombatResult simulateBossCombat(const PlayerStats& playerStats,
+                                    const BossDef& boss,
+                                    int minigameStars = 1,
+                                    bool isEcho = false,
+                                    int echoRank = 1,
+                                    std::uint64_t seed = 0xB055ULL);
 
 } // namespace ed
