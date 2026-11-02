@@ -6,6 +6,8 @@
 
 namespace ed {
 
+struct GameState;
+
 struct InventoryItem {
   std::string id;
   std::string name;
@@ -59,5 +61,27 @@ int gearSocketCount(int tier, bool legendary = false, int upgradeLevel = 0);
 int countItem(const InventoryState& inventory, const std::string& type, const std::string& itemId);
 bool insertGem(InventoryState& inventory, GearPiece& piece, const std::string& gemId);
 bool removeGem(InventoryState& inventory, GearPiece& piece, std::size_t socketIndex);
+
+GearPiece createLegendaryGear(const std::string& legendaryId);
+bool isLegendaryId(const std::string& id);
+std::vector<std::string> allLegendaryIds();
+std::string legendaryEffectDescription(const std::string& legendaryId);
+
+enum class GemCut {
+  Rough,
+  Cut,
+  Flawless
+};
+
+GemCut gemCutFromId(const std::string& gemId);
+int gemCutMultiplier(const std::string& gemId);
+std::string baseGemId(const std::string& gemId);
+std::string gemDisplayName(const std::string& gemId);
+std::string nextGemCutId(const std::string& gemId);
+int gemCombineDustCost(GemCut cut);
+int gemCombineGoldCost(GemCut cut);
+int countRoughGems(const InventoryState& inventory, const std::string& base);
+bool canCombineGems(const InventoryState& inventory, const GameState& game, const std::string& gemId);
+bool combineGems(InventoryState& inventory, GameState& game, const std::string& gemId);
 
 } // namespace ed

@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 #include <stdexcept>
 
 namespace ed {
@@ -71,6 +72,51 @@ std::uint64_t progressScore(int ascensions,
       static_cast<std::uint64_t>(bossesCleared) * 1'000'000ULL +
       static_cast<std::uint64_t>(level) * 1'000ULL +
       static_cast<std::uint64_t>(std::floor(goldLog)));
+}
+
+std::string formatCount(std::int64_t count) {
+  if (count < 0) {
+    if (count == INT64_MIN) return "-9.223b";
+    return "-" + formatCount(-count);
+  }
+  if (count < 1000) {
+    return std::to_string(count);
+  }
+
+  auto formatWithPrecision = [](double value, int decimals, const char* suffix) -> std::string {
+    char buf[64];
+    std::snprintf(buf, sizeof(buf), "%.*f", decimals, value);
+    std::string s(buf);
+    if (s.find('.') != std::string::npos) {
+      while (!s.empty() && s.back() == '0') {
+        s.pop_back();
+      }
+      if (!s.empty() && s.back() == '.') {
+        s.pop_back();
+      }
+    }
+    return s + suffix;
+  };
+
+  if (count < 1'000'000) {
+    if (count >= 999'995) {
+      return "1m";
+    }
+    return formatWithPrecision(static_cast<double>(count) / 1'000.0, 2, "k");
+  }
+  if (count < 1'000'000'000) {
+    if (count >= 999'999'500) {
+      return "1b";
+    }
+    return formatWithPrecision(static_cast<double>(count) / 1'000'000.0, 3, "m");
+  }
+  if (count < 1'000'000'000'000LL) {
+    if (count >= 999'999'500'000LL) {
+      return "1t";
+    }
+    return formatWithPrecision(static_cast<double>(count) / 1'000'000'000.0, 3, "b");
+  }
+  return formatWithPrecision(static_cast<double>(count) / 1'000'000'000'000.0, 3, "t");
 }
 
 } // namespace ed

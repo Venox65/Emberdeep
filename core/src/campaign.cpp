@@ -154,8 +154,12 @@ void applyBossOutcome(GameState& game, const BossOutcome& outcome) {
   if (!outcome.cleared) {
     return;
   }
-  game.player.gold += outcome.goldReward;
-  game.player.goldEarnedThisRun += outcome.goldReward;
+  game.player.gold = static_cast<int>(std::min<std::int64_t>(
+      std::numeric_limits<int>::max(),
+      static_cast<std::int64_t>(game.player.gold) + outcome.goldReward));
+  game.player.goldEarnedThisRun = static_cast<int>(std::min<std::int64_t>(
+      std::numeric_limits<int>::max(),
+      static_cast<std::int64_t>(game.player.goldEarnedThisRun) + outcome.goldReward));
   applyXp(game, outcome.xpReward);
   if (outcome.firstClear) {
     ++game.player.bossesCleared;

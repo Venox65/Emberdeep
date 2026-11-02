@@ -11,9 +11,205 @@
 namespace ed::app {
 
 void updateEffects(AppState& app, float delta) {
+  if (app.screen == Screen::Loading) {
+    app.loadingTimer += delta;
+    if (app.loadingTimer >= 1.0F) {
+      app.screen = Screen::Title;
+    }
+    return;
+  }
+  if (app.screen == Screen::Title) {
+    return;
+  }
+  if (app.screen == Screen::DescentRun) {
+    app.noticeLifetime = std::max(0.0F, app.noticeLifetime - delta);
+    if (app.descentPopupTimer > 0.0F) {
+      app.descentPopupTimer = std::max(0.0F, app.descentPopupTimer - delta);
+    }
+
+    if (app.descentMinigameActive) {
+      if (app.descentMinigameBossIdx >= 0 && static_cast<std::size_t>(app.descentMinigameBossIdx) < app.bosses.size()) {
+        const auto challenge = app.bosses[static_cast<std::size_t>(app.descentMinigameBossIdx)].challenge;
+        if (challenge == ed::BossChallenge::FrenzyDig) {
+          ed::updateFrenzyDig(app.frenzyDig, delta, app.rng);
+          if (app.frenzyDig.finished) {
+            const bool win = (app.frenzyDig.taps + app.frenzyDig.nuggetTaps * 5 >= 25);
+            finishDescentVaultMinigame(app, win);
+          }
+        } else if (challenge == ed::BossChallenge::BoneDuel) {
+          ed::updateBoneDuel(app.boneDuel, delta);
+          if (app.boneDuel.finished) {
+            const bool win = (app.boneDuel.cleared || app.boneDuel.perfectHits >= 3);
+            finishDescentVaultMinigame(app, win);
+          }
+        } else if (challenge == ed::BossChallenge::CinderDance) {
+          ed::updateCinderDance(app.cinderDance, delta);
+          if (app.cinderDance.finished) {
+            const bool win = (!app.cinderDance.failed && app.cinderDance.groove >= 20);
+            finishDescentVaultMinigame(app, win);
+          }
+        } else if (challenge == ed::BossChallenge::HeadHunt) {
+          ed::updateHeadHunt(app.headHunt, delta, app.rng, 1.0);
+          if (app.headHunt.finished) {
+            const bool win = (app.headHunt.realHits >= 6 && app.headHunt.heartsLost <= 3);
+            finishDescentVaultMinigame(app, win);
+          }
+        } else if (challenge == ed::BossChallenge::ParryDuel) {
+          ed::updateParryDuel(app.parryDuel, delta, app.rng);
+          if (app.parryDuel.finished) {
+            const bool win = (app.parryDuel.cleared || app.parryDuel.successfulParries >= 6);
+            finishDescentVaultMinigame(app, win);
+          }
+        } else if (challenge == ed::BossChallenge::RuneRecall) {
+          ed::updateRuneRecall(app.runeRecall, delta, app.rng);
+          if (app.runeRecall.finished) {
+            const bool win = (app.runeRecall.cleared || app.runeRecall.round >= 3);
+            finishDescentVaultMinigame(app, win);
+          }
+        } else if (challenge == ed::BossChallenge::StarTrace) {
+          ed::updateStarTrace(app.starTrace, delta, app.rng);
+          if (app.starTrace.finished) {
+            const bool win = (app.starTrace.cleared || app.starTrace.constellation >= 2);
+            finishDescentVaultMinigame(app, win);
+          }
+        } else if (challenge == ed::BossChallenge::Heartpierce) {
+          const bool thrust = IsKeyDown(KEY_SPACE) || IsMouseButtonDown(MOUSE_BUTTON_LEFT);
+          ed::updateHeartpierce(app.heartpierce, delta, thrust);
+          if (app.heartpierce.finished) {
+            const bool win = (app.heartpierce.cleared || app.heartpierce.overlapTime >= 5.0F);
+            finishDescentVaultMinigame(app, win);
+          }
+        } else if (challenge == ed::BossChallenge::SoulDodge) {
+          const float moveX = (IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_D)) - (IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_A));
+          const float moveY = (IsKeyDown(KEY_DOWN) || IsKeyDown(KEY_S)) - (IsKeyDown(KEY_UP) || IsKeyDown(KEY_W));
+          ed::updateSoulDodge(app.soulDodge, delta, moveX, moveY,
+                              IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT), 6);
+          if (app.soulDodge.finished) {
+            const bool win = (app.soulDodge.hits <= 5);
+            finishDescentVaultMinigame(app, win);
+          }
+        } else {
+          finishDescentVaultMinigame(app, true);
+        }
+      }
+      return;
+    }
+
+    if (!app.descentPaused && !app.descentSim.levelUpPending && !app.descentSim.runCompleted && app.descentSim.player.currentHp > 0.0F) {
+      ed::descent::DescentInput input;
+      if (IsKeyDown(KEY_W) || IsKeyDown(KEY_UP)) input.moveVector.y -= 1.0F;
+      if (IsKeyDown(KEY_S) || IsKeyDown(KEY_DOWN)) input.moveVector.y += 1.0F;
+      if (IsKeyDown(KEY_A) || IsKeyDown(KEY_LEFT)) input.moveVector.x -= 1.0F;
+      if (IsKeyDown(KEY_D) || IsKeyDown(KEY_RIGHT)) input.moveVector.x += 1.0F;
+
+      const Vector2 mouseScreen = GetMousePosition();
+      const Vector2 mouseWorld = GetScreenToWorld2D(mouseScreen, app.descentCamera);
+      input.aimPosition = {mouseWorld.x, mouseWorld.y};
+
+      input.dashPressed = IsKeyPressed(KEY_SPACE);
+      input.skillPressed = IsKeyPressed(KEY_Q) || IsMouseButtonPressed(MOUSE_BUTTON_RIGHT);
+      input.ultimatePressed = IsKeyPressed(KEY_R);
+      input.interactPressed = IsKeyPressed(KEY_E);
+
+      app.descentAccumulator += std::min(delta, 0.1F);
+      while (app.descentAccumulator >= (1.0F / 60.0F)) {
+        const int prevChamber = app.descentSim.chamberIndex;
+        ed::descent::stepDescentSim(app.descentSim, input, 1.0F / 60.0F);
+        if (app.descentSim.chamberIndex != prevChamber) {
+          app.descentChestOpened = false;
+          app.descentMinigameActive = false;
+          app.descentPopupTimer = 0.0F;
+        }
+        if (app.descentSim.isEndless) {
+          if (app.descentSim.chamberIndex > app.game.player.descentEndlessBestChamber) {
+            app.game.player.descentEndlessBestChamber = app.descentSim.chamberIndex;
+            app.game.dirty = true;
+          }
+          if (app.descentSim.chamberIndex > app.descentMeta.bestEndlessChamber) {
+            app.descentMeta.bestEndlessChamber = app.descentSim.chamberIndex;
+          }
+        } else {
+          if (app.descentSim.chamberIndex > app.game.player.descentBestChamber) {
+            app.game.player.descentBestChamber = app.descentSim.chamberIndex;
+            app.game.dirty = true;
+          }
+        }
+        if (app.descentSim.runLevel > app.game.player.descentMaxRunLevel) {
+          app.game.player.descentMaxRunLevel = app.descentSim.runLevel;
+          app.game.dirty = true;
+        }
+        app.descentAccumulator -= (1.0F / 60.0F);
+        input.dashPressed = false;
+        input.skillPressed = false;
+        input.ultimatePressed = false;
+      }
+    }
+    return;
+  }
+
   app.blockPulse = std::max(0.0F, app.blockPulse - delta);
   app.shake = std::max(0.0F, app.shake - delta);
   app.noticeLifetime = std::max(0.0F, app.noticeLifetime - delta);
+
+  if (app.activeMiningTimer > 0.0F) {
+    app.activeMiningTimer = std::max(0.0F, app.activeMiningTimer - delta);
+  }
+
+  // Auto-Clicker (Chrono Automaton) - disabled while player is actively mining (30s grace window)
+  const bool isPlayerActivelyMining = (app.activeMiningTimer > 0.0F);
+  if (app.game.player.autoClickerLevel >= 1 && app.game.player.autoClickerEnabled && !isPlayerActivelyMining) {
+    const float speed = static_cast<float>(ed::autoClickerSpeed(app.game.player.autoClickerLevel));
+    if (speed > 0.0F) {
+      const float interval = 1.0F / speed;
+      app.autoClickTimer += delta;
+      if (app.autoClickTimer >= interval) {
+        app.autoClickTimer = 0.0F;
+        mine(app, {640.0F, 335.0F}, /*isAutoMine=*/true);
+      }
+    }
+  } else if (isPlayerActivelyMining) {
+    app.autoClickTimer = 0.0F;
+  }
+
+  if (app.screen == Screen::Mine) {
+    if (app.weakSpotActive) {
+      app.weakSpotTimer -= delta;
+      if (app.weakSpotTimer <= 0.0F) {
+        app.weakSpotActive = false;
+        const float cdMult = std::max(0.2F, 1.0F - app.game.player.vows.deepBreath * 0.05F);
+        app.weakSpotCooldown = (4.0F + static_cast<float>(app.rng.next() % 4000) / 1000.0F) * cdMult;
+      }
+    } else {
+      app.weakSpotCooldown -= delta;
+      if (app.weakSpotCooldown <= 0.0F) {
+        app.weakSpotActive = true;
+        app.weakSpotTimer = 1.5F;
+        const float offsetX = -70.0F + static_cast<float>(app.rng.next() % 141);
+        const float offsetY = -70.0F + static_cast<float>(app.rng.next() % 141);
+        app.weakSpotPos = {640.0F + offsetX, 335.0F + offsetY};
+      }
+    }
+  }
+
+  app.achievementNotificationTimer = std::max(0.0F, app.achievementNotificationTimer - delta);
+  app.achievementCheckTimer += delta;
+  if (app.achievementCheckTimer >= 0.5F) {
+    app.achievementCheckTimer = 0.0F;
+    const auto newlyUnlocked = ed::evaluateNewAchievements(app.game, app.inventory, app.campaign);
+    for (const auto& achId : newlyUnlocked) {
+      app.game.player.achievements.push_back(achId);
+      app.game.dirty = true;
+      std::string title = achId;
+      for (const auto& a : ed::allAchievements()) {
+        if (a.id == achId) {
+          title = a.title;
+          break;
+        }
+      }
+      app.achievementNotification = "Achievement Unlocked: " + title + "!";
+      app.achievementNotificationTimer = 4.0F;
+    }
+  }
 
   if (app.inDungeonCombat) {
     if (app.dungeonShowResults) {
@@ -190,8 +386,12 @@ void updateEffects(AppState& app, float delta) {
                   app.bossCombatRewardSigils = sigilReward;
                   app.bossCombatRewardXp = 0;
                   app.bossCombatRewardLegendary.clear();
-                  app.game.player.gold += goldReward;
-                  app.game.player.goldEarnedThisRun += goldReward;
+                  app.game.player.gold = static_cast<int>(std::min<std::int64_t>(
+                      std::numeric_limits<int>::max(),
+                      static_cast<std::int64_t>(app.game.player.gold) + goldReward));
+                  app.game.player.goldEarnedThisRun = static_cast<int>(std::min<std::int64_t>(
+                      std::numeric_limits<int>::max(),
+                      static_cast<std::int64_t>(app.game.player.goldEarnedThisRun) + goldReward));
                   app.game.player.echoSigils += sigilReward;
                   app.game.dirty = true;
                 } else {
@@ -199,6 +399,11 @@ void updateEffects(AppState& app, float delta) {
                       app.game, app.campaign, app.bosses, index,
                       {app.campaignScore, app.campaignHeartsLost, true, 0.0});
                   ed::applyBossOutcome(app.game, outcome);
+                  if (outcome.firstClear && !outcome.legendaryId.empty()) {
+                    auto piece = ed::createLegendaryGear(outcome.legendaryId);
+                    app.inventory.gear.push_back(piece);
+                    app.game.dirty = true;
+                  }
                   app.bossCombatRewardGold = outcome.goldReward;
                   app.bossCombatRewardXp = outcome.xpReward;
                   app.bossCombatRewardSigils = 0;
@@ -369,10 +574,7 @@ void updateEffects(AppState& app, float delta) {
     text.lifetime -= delta;
     text.position.y -= 28.0F * delta;
   }
-  app.floatingText.erase(
-      std::remove_if(app.floatingText.begin(), app.floatingText.end(),
-                     [](const FloatingText& text) { return text.lifetime <= 0.0F; }),
-      app.floatingText.end());
+  std::erase_if(app.floatingText, [](const FloatingText& text) { return text.lifetime <= 0.0F; });
 
   for (auto& particle : app.particles) {
     particle.lifetime -= delta;
@@ -380,10 +582,7 @@ void updateEffects(AppState& app, float delta) {
     particle.position.y += particle.velocity.y * delta;
     particle.velocity.y += 160.0F * delta;
   }
-  app.particles.erase(
-      std::remove_if(app.particles.begin(), app.particles.end(),
-                     [](const Particle& particle) { return particle.lifetime <= 0.0F; }),
-      app.particles.end());
+  std::erase_if(app.particles, [](const Particle& particle) { return particle.lifetime <= 0.0F; });
 }
 
 } // namespace ed::app

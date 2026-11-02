@@ -25,7 +25,13 @@ add_executable(emberdeep_graphical
     src/app/game_updates.cpp
     src/app/campaign_minigames.cpp
     src/app/ui_screens.cpp
+    src/app/ui_descent.cpp
+    src/app/ui_inventory.cpp
+    src/app/ui_profile.cpp
     src/app/input_handler.cpp
+    src/app/input_descent.cpp
+    src/app/input_inventory.cpp
+    src/app/input_profile.cpp
 )
 
 target_link_libraries(emberdeep_graphical PRIVATE emberdeep_client raylib)

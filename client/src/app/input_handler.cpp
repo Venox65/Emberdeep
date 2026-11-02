@@ -10,10 +10,57 @@
 #include "game_actions.hpp"
 #include "save_system.hpp"
 #include "ui_screens.hpp"
+#include "ed/postgame.hpp"
 
 namespace ed::app {
 
 void handleInput(AppState& app) {
+  if (app.screen == Screen::Loading) {
+    if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE) || IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+      app.screen = Screen::Title;
+    }
+    return;
+  }
+
+  if (app.screen == Screen::Title) {
+    if (app.showSaveSelect) {
+      handleSaveSelectInput(app);
+      return;
+    }
+    const Vector2 mouse = GetMousePosition();
+    const Rectangle enterBtn{450, 350, 380, 68};
+    const Rectangle saveBtn{490, 442, 300, 44};
+
+    if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE) ||
+        (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && CheckCollisionPointRec(mouse, enterBtn))) {
+      app.screen = Screen::Mine;
+      return;
+    }
+
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && CheckCollisionPointRec(mouse, saveBtn)) {
+      app.showSaveSelect = true;
+      app.saveFilesList = scanSaveFiles(app.savePath);
+      app.saveSelectScroll = 0;
+      app.newSaveInputFocused = false;
+      return;
+    }
+    return;
+  }
+
+  if (app.offlinePopupActive) {
+    if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE) || IsKeyPressed(KEY_ESCAPE)) {
+      app.offlinePopupActive = false;
+      return;
+    }
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+      const Vector2 mouse = GetMousePosition();
+      if (CheckCollisionPointRec(mouse, {490, 540, 300, 46})) {
+        app.offlinePopupActive = false;
+        return;
+      }
+    }
+    return;
+  }
   if (app.showSaveSelect) {
     handleSaveSelectInput(app);
     return;
@@ -39,15 +86,25 @@ void handleInput(AppState& app) {
       app.newSaveInputFocused = false;
       return;
     }
+    const auto switchTab = [&](Screen s) {
+      if (app.screen != s) {
+        app.screen = s;
+        app.gemSlotMenuOpen = false;
+        app.particles.clear();
+        app.floatingText.clear();
+        app.shake = 0.0F;
+      }
+    };
+
     if (app.sidebarOpen) {
       if (CheckCollisionPointRec(mouse, {150, 15, 30, 30})) {
         app.sidebarOpen = false;
       } else {
-        const Screen navScreens[] = {Screen::Mine, Screen::Inventory, Screen::Crafting, Screen::Campaign, Screen::Dungeon, Screen::GemHollow, Screen::Enchanting, Screen::Profile};
-        for (int i = 0; i < 8; ++i) {
-          const int y = 80 + i * 50;
-          if (CheckCollisionPointRec(mouse, {10, static_cast<float>(y), 180, 40})) {
-            app.screen = navScreens[i];
+        const Screen navScreens[] = {Screen::Mine, Screen::Inventory, Screen::Crafting, Screen::Campaign, Screen::Dungeon, Screen::GemHollow, Screen::Enchanting, Screen::Profile, Screen::Settings, Screen::DescentHub};
+        for (int i = 0; i < 10; ++i) {
+          const int y = 70 + i * 46;
+          if (CheckCollisionPointRec(mouse, {10, static_cast<float>(y), 180, 38})) {
+            switchTab(navScreens[i]);
             app.sidebarOpen = false;
             break;
           }
@@ -60,14 +117,44 @@ void handleInput(AppState& app) {
     }
   }
 
-  if (IsKeyPressed(KEY_ONE)) app.screen = Screen::Mine;
-  if (IsKeyPressed(KEY_TWO)) app.screen = Screen::Inventory;
-  if (IsKeyPressed(KEY_THREE)) app.screen = Screen::Crafting;
-  if (IsKeyPressed(KEY_FOUR)) app.screen = Screen::Campaign;
-  if (IsKeyPressed(KEY_FIVE)) app.screen = Screen::Dungeon;
-  if (IsKeyPressed(KEY_SIX)) app.screen = Screen::GemHollow;
-  if (IsKeyPressed(KEY_SEVEN)) app.screen = Screen::Enchanting;
-  if (IsKeyPressed(KEY_EIGHT)) app.screen = Screen::Profile;
+  const auto switchTab = [&](Screen s) {
+    if (app.screen != s) {
+      app.screen = s;
+      app.gemSlotMenuOpen = false;
+      app.gemRefineModalOpen = false;
+      app.particles.clear();
+      app.floatingText.clear();
+      app.shake = 0.0F;
+    }
+  };
+
+  if (app.gemRefineModalOpen) {
+    if (IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_R)) {
+      app.gemRefineModalOpen = false;
+      return;
+    }
+    const float wheel = GetMouseWheelMove();
+    if (wheel != 0.0F) {
+      app.gemRefineScroll -= static_cast<int>(wheel * 60.0F);
+    }
+    return;
+  }
+
+  if (app.screen != Screen::DescentRun && app.screen != Screen::Title) {
+    if (IsKeyPressed(KEY_ONE)) switchTab(Screen::Mine);
+    if (IsKeyPressed(KEY_TWO)) switchTab(Screen::Inventory);
+    if (IsKeyPressed(KEY_THREE)) switchTab(Screen::Crafting);
+    if (IsKeyPressed(KEY_FOUR)) switchTab(Screen::Campaign);
+    if (IsKeyPressed(KEY_FIVE)) switchTab(Screen::Dungeon);
+    if (IsKeyPressed(KEY_SIX)) switchTab(Screen::GemHollow);
+    if (IsKeyPressed(KEY_SEVEN)) switchTab(Screen::Enchanting);
+    if (IsKeyPressed(KEY_EIGHT)) switchTab(Screen::Profile);
+    if (IsKeyPressed(KEY_NINE)) switchTab(Screen::Settings);
+    if (IsKeyPressed(KEY_ZERO)) switchTab(Screen::DescentHub);
+  }
+
+  const Vector2 mouse = GetMousePosition();
+  const bool leftClick = IsMouseButtonPressed(MOUSE_BUTTON_LEFT);
 
   if (app.screen == Screen::Mine) {
     const bool isLayer10 = (app.layers[static_cast<std::size_t>(app.layerIndex)].id == "aether-vault");
@@ -100,7 +187,10 @@ void handleInput(AppState& app) {
       }
     }
 
-    if (IsKeyPressed(KEY_SPACE)) mine(app, {640, 305});
+    if (IsKeyPressed(KEY_SPACE)) {
+      app.activeMiningTimer = 30.0F;
+      mine(app, {640, 305}, false);
+    }
     if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
       const Vector2 mouse = GetMousePosition();
       bool buttonClicked = false;
@@ -128,198 +218,13 @@ void handleInput(AppState& app) {
         }
       }
       if (!buttonClicked && CheckCollisionPointRec(mouse, {400, 220, 480, 260})) {
-        mine(app, mouse);
+        app.activeMiningTimer = 30.0F;
+        mine(app, mouse, false);
       }
     }
-  } else if (app.screen == Screen::Inventory) {
-    if (IsKeyPressed(KEY_A) && !app.inventory.gear.empty()) {
-      app.selectedGear = std::max(0, app.selectedGear - 1);
-      syncGearScroll(app);
-    }
-    if (IsKeyPressed(KEY_D) && !app.inventory.gear.empty()) {
-      app.selectedGear = std::min(static_cast<int>(app.inventory.gear.size()) - 1,
-                                  app.selectedGear + 1);
-      syncGearScroll(app);
-    }
-    if (IsKeyPressed(KEY_W)) {
-      app.inventoryScroll -= 120;
-      clampInventoryScroll(app);
-    }
-    if (IsKeyPressed(KEY_S)) {
-      app.inventoryScroll += 120;
-      clampInventoryScroll(app);
-    }
-    const float wheel = GetMouseWheelMove();
-    if (wheel != 0.0F) {
-      app.inventoryScroll -= static_cast<int>(wheel * 80.0F);
-      clampInventoryScroll(app);
-    }
-    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && !app.inventory.gear.empty()) {
-      const int gearY = inventoryGearStartY(app) - app.inventoryScroll;
-      const Vector2 mouse = GetMousePosition();
-      const int gearRows = (static_cast<int>(app.inventory.gear.size()) + 2) / 3;
-      if (mouse.y >= 160.0F && mouse.y <= 660.0F &&
-          mouse.y >= gearY && mouse.y < gearY + gearRows * 70 &&
-          mouse.x >= 70.0F && mouse.x < 1180.0F) {
-        const int column = std::clamp(static_cast<int>((mouse.x - 70.0F) / 370.0F), 0, 2);
-        const int row = static_cast<int>((mouse.y - gearY) / 70.0F);
-        const int index = row * 3 + column;
-        if (index >= 0 && index < static_cast<int>(app.inventory.gear.size())) {
-          app.selectedGear = index;
-        }
-      }
-    }
-    if (!app.inventory.gear.empty() && IsKeyPressed(KEY_U)) {
-      auto& piece = app.inventory.gear[static_cast<std::size_t>(app.selectedGear)];
-      if (ed::upgradeGear(app.game, piece)) {
-        if (piece.upgradeLevel >= 11) {
-          setNotice(app, "Mythic upgrade successful! (" + piece.name + " +" +
-                             std::to_string(piece.upgradeLevel) + ")");
-        } else {
-          setNotice(app, "Gear upgraded to +" + std::to_string(piece.upgradeLevel) + ".");
-        }
-      } else {
-        if (piece.upgradeLevel >= ed::maxGearUpgradeLevel(app.game)) {
-          setNotice(app, "This gear is already at maximum level (" +
-                             std::to_string(piece.upgradeLevel) + ").");
-        } else if (piece.upgradeLevel >= 10 && !ed::isMythicUpgradeUnlocked(app.game)) {
-          setNotice(app, "Mythic upgrades (+11 to +20) require defeating The Hollow King.");
-        } else {
-          const int gold = ed::upgradeGoldCost(piece);
-          const int dust = ed::upgradeDustCost(piece);
-          const int shards = ed::upgradeAetherShardCost(piece);
-          const int sigils = ed::upgradeEchoSigilCost(piece);
-          std::string costMsg = "Need " + std::to_string(gold) + " gold, " + std::to_string(dust) + " dust";
-          if (shards > 0) costMsg += ", " + std::to_string(shards) + " Aether Shard(s)";
-          if (sigils > 0) costMsg += ", " + std::to_string(sigils) + " Echo Sigil(s)";
-          setNotice(app, costMsg + ".");
-        }
-      }
-    }
-    if (!app.inventory.gear.empty() && IsKeyPressed(KEY_E)) {
-      auto& piece = app.inventory.gear[static_cast<std::size_t>(app.selectedGear)];
-      const bool equipped = ed::equipGear(app.inventory, piece);
-      if (equipped && piece.slot == "pickaxe") {
-        app.game.player.pickaxeTier = std::max(app.game.player.pickaxeTier, piece.tier);
-      }
-      app.game.dirty = equipped;
-      setNotice(app, equipped ? "Gear equipped. Stats updated." : "Cannot equip gear.");
-    }
-    if (!app.inventory.gear.empty() && IsKeyPressed(KEY_N)) {
-      app.screen = Screen::Enchanting;
-    }
-    if (!app.inventory.gear.empty() && IsKeyPressed(KEY_G)) {
-      auto& piece = app.inventory.gear[static_cast<std::size_t>(app.selectedGear)];
-      if (piece.socketedGems.size() < piece.sockets) {
-        std::string gemToInsert = "";
-        for (const auto& [gemId, count] : app.inventory.gems) {
-          if (count > 0) {
-            gemToInsert = gemId;
-            break;
-          }
-        }
-        if (!gemToInsert.empty()) {
-          ed::insertGem(app.inventory, piece, gemToInsert);
-          app.game.dirty = true;
-          setNotice(app, "Inserted " + gemToInsert + ".");
-        } else {
-          setNotice(app, "No gems available.");
-        }
-      } else {
-        setNotice(app, "No free sockets.");
-      }
-    }
-    if (!app.inventory.gear.empty() && IsKeyPressed(KEY_R)) {
-      auto& piece = app.inventory.gear[static_cast<std::size_t>(app.selectedGear)];
-      if (!piece.socketedGems.empty()) {
-        ed::removeGem(app.inventory, piece, piece.socketedGems.size() - 1);
-        app.game.dirty = true;
-        setNotice(app, "Removed gem.");
-      } else {
-        setNotice(app, "No gems to remove.");
-      }
-    }
-  } else if (app.screen == Screen::Enchanting) {
-    if (!app.inventory.gear.empty()) {
-      if (IsKeyPressed(KEY_W)) {
-        app.selectedGear = std::max(0, app.selectedGear - 1);
-      }
-      if (IsKeyPressed(KEY_S)) {
-        app.selectedGear = std::min(static_cast<int>(app.inventory.gear.size()) - 1,
-                                    app.selectedGear + 1);
-      }
-      if (IsKeyPressed(KEY_N) && app.selectedGear < static_cast<int>(app.inventory.gear.size())) {
-        auto& piece = app.inventory.gear[static_cast<size_t>(app.selectedGear)];
-        bool ok = ed::enchantGearPiece(app.game, app.inventory, piece.itemId, app.rng);
-        if (ok) {
-          setNotice(app, "Enchanted: " + piece.enchantment);
-        } else {
-          setNotice(app, "Not enough resources to enchant.");
-        }
-      }
-    }
-  } else if (app.screen == Screen::Crafting) {
-    if (IsKeyPressed(KEY_A)) {
-      app.selectedRecipe = std::max(0, app.selectedRecipe - 1);
-    }
-    if (IsKeyPressed(KEY_D)) {
-      app.selectedRecipe = std::min(static_cast<int>(app.recipes.size()) - 1,
-                                    app.selectedRecipe + 1);
-    }
-    const auto& recipe = app.recipes[static_cast<std::size_t>(app.selectedRecipe)];
-    if (IsKeyPressed(KEY_W)) {
-      app.craftingScroll = std::max(0, app.craftingScroll - 120);
-    }
-    if (IsKeyPressed(KEY_S)) {
-      app.craftingScroll += 120;
-    }
-    const float wheel = GetMouseWheelMove();
-    if (wheel != 0.0F) {
-      app.craftingScroll -= static_cast<int>(wheel * 80.0F);
-    }
-    const int craftingContentHeight =
-        (10 + static_cast<int>(app.recipes.size())) * 42;
-    app.craftingScroll = std::clamp(app.craftingScroll, 0, craftingContentHeight - 405);
-    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-      const Vector2 mouse = GetMousePosition();
-      if (mouse.x >= 70.0F && mouse.x < 610.0F &&
-          mouse.y >= 195.0F && mouse.y < 600.0F) {
-        const int targetRow =
-            (static_cast<int>(mouse.y) - 195 + app.craftingScroll) / 42;
-        int row = 0;
-        bool selected = false;
-        for (int tier = 1; tier <= 10 && !selected; ++tier) {
-          ++row;
-          for (std::size_t index = 0; index < app.recipes.size(); ++index) {
-            if (app.recipes[index].tier != tier) continue;
-            if (row == targetRow) {
-              app.selectedRecipe = static_cast<int>(index);
-              selected = true;
-              break;
-            }
-            ++row;
-          }
-        }
-      }
-    }
-    if (IsKeyPressed(KEY_M)) {
-      const int tier = std::clamp(recipe.tier, 1, 10);
-      const int recipeLayer = std::clamp(tier - 1, 0, static_cast<int>(app.layers.size()) - 1);
-      if (!ed::canUnlockLayer(app.game, app.layers[static_cast<std::size_t>(recipeLayer)])) {
-        setNotice(app, layerLockReason(app.game, app.layers[static_cast<std::size_t>(recipeLayer)]));
-      } else {
-        setNotice(app, ed::smeltOre(app.inventory, materialIdForTier(tier), 1)
-                            ? "Smelted 4 ore into 1 ingot."
-                            : "Need 4 matching ore.");
-      }
-    }
-    if (IsKeyPressed(KEY_ENTER)) {
-      if (ed::craftGear(app.game, app.inventory, recipe)) {
-        setNotice(app, "Gear crafted. Check Inventory.");
-      } else {
-        setNotice(app, craftFailureReason(app, recipe));
-      }
-    }
+  } else if (app.screen == Screen::Inventory || app.screen == Screen::GemHollow ||
+             app.screen == Screen::Enchanting || app.screen == Screen::Crafting) {
+    handleInventoryInput(app, mouse, leftClick);
   } else if (app.screen == Screen::Campaign) {
     if (app.inBossCombat) {
       if (app.bossCombatShowResults) {
@@ -474,54 +379,59 @@ void handleInput(AppState& app) {
       }
     }
   } else if (app.screen == Screen::Profile) {
-    const Vector2 mouse = GetMousePosition();
-    const bool unlocked = (app.game.player.bossesCleared >= 10 || app.game.player.ascensions > 0);
-
-    if (app.ascensionConfirm) {
-      const Rectangle confirmBtn{410, 430, 210, 48};
-      const Rectangle cancelBtn{670, 430, 210, 48};
-      if (IsKeyPressed(KEY_Y) ||
-          (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && CheckCollisionPointRec(mouse, confirmBtn))) {
-        const int marks = ed::applyAscension(app.game, &app.inventory);
-        app.ascensionConfirm = false;
-        app.layerIndex = 0;
-        app.deepStrataDepth = 0;
-        app.game.player.currentLayer = "ashen-warrens";
-        spawnBlock(app);
-        requestSave(app);
-        setNotice(app, "Ascended! Gained " + std::to_string(marks) + " Ember Marks.");
-      } else if (IsKeyPressed(KEY_N) || IsKeyPressed(KEY_ESCAPE) ||
-                 (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && CheckCollisionPointRec(mouse, cancelBtn))) {
-        app.ascensionConfirm = false;
+    handleProfileInput(app, mouse, leftClick);
+  } else if (app.screen == Screen::Settings) {
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+      const Vector2 mouse = GetMousePosition();
+      // Screen shake toggle: {850, 220, 100, 36}
+      if (CheckCollisionPointRec(mouse, {850, 220, 100, 36})) {
+        app.settings.screenShake = !app.settings.screenShake;
       }
-      return;
+      // Abbreviated numbers toggle: {850, 275, 100, 36}
+      if (CheckCollisionPointRec(mouse, {850, 275, 100, 36})) {
+        app.settings.abbreviatedNumbers = !app.settings.abbreviatedNumbers;
+      }
+      // Master volume: minus {760, 380, 36, 32}, plus {914, 380, 36, 32}
+      if (CheckCollisionPointRec(mouse, {760, 380, 36, 32})) {
+        app.settings.masterVolume = std::max(0, app.settings.masterVolume - 10);
+      } else if (CheckCollisionPointRec(mouse, {914, 380, 36, 32})) {
+        app.settings.masterVolume = std::min(100, app.settings.masterVolume + 10);
+      }
+      // SFX volume: minus {760, 425, 36, 32}, plus {914, 425, 36, 32}
+      if (CheckCollisionPointRec(mouse, {760, 425, 36, 32})) {
+        app.settings.sfxVolume = std::max(0, app.settings.sfxVolume - 10);
+      } else if (CheckCollisionPointRec(mouse, {914, 425, 36, 32})) {
+        app.settings.sfxVolume = std::min(100, app.settings.sfxVolume + 10);
+      }
+      // Music volume: minus {760, 470, 36, 32}, plus {914, 470, 36, 32}
+      if (CheckCollisionPointRec(mouse, {760, 470, 36, 32})) {
+        app.settings.musicVolume = std::max(0, app.settings.musicVolume - 10);
+      } else if (CheckCollisionPointRec(mouse, {914, 470, 36, 32})) {
+        app.settings.musicVolume = std::min(100, app.settings.musicVolume + 10);
+      }
+      // Save Now button: {320, 545, 190, 44}
+      if (CheckCollisionPointRec(mouse, {320, 545, 190, 44})) {
+        saveNow(app);
+        setNotice(app, "Game saved successfully.");
+      }
+      // Select Save / Manage button: {530, 545, 210, 44}
+      if (CheckCollisionPointRec(mouse, {530, 545, 210, 44})) {
+        app.showSaveSelect = true;
+        app.saveFilesList = scanSaveFiles(app.savePath);
+        app.saveSelectScroll = 0;
+        app.newSaveInputFocused = false;
+      }
+      // Return to Title Screen button: {760, 545, 190, 44}
+      if (CheckCollisionPointRec(mouse, {760, 545, 190, 44})) {
+        saveNow(app);
+        app.screen = Screen::Title;
+        app.particles.clear();
+        app.floatingText.clear();
+        app.shake = 0.0F;
+      }
     }
-
-    if (unlocked) {
-      const Rectangle ascendBtn{1060, 173, 160, 42};
-      if ((IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && CheckCollisionPointRec(mouse, ascendBtn)) ||
-          IsKeyPressed(KEY_ENTER)) {
-        app.ascensionConfirm = true;
-      }
-
-      const char* perkIds[] = {"potential", "power", "wealth", "wisdom", "armory", "smelting"};
-      const KeyboardKey keys[] = {KEY_ONE, KEY_TWO, KEY_THREE, KEY_FOUR, KEY_FIVE, KEY_SIX};
-
-      int py = 262;
-      for (int i = 0; i < 6; ++i) {
-        const Rectangle upgradeBtn{1040, static_cast<float>(py + 9), 175, 40};
-        if (IsKeyPressed(keys[i]) ||
-            (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && CheckCollisionPointRec(mouse, upgradeBtn))) {
-          if (ed::upgradeEmberPerk(app.game, perkIds[i])) {
-            requestSave(app);
-            setNotice(app, "Upgraded " + std::string(perkIds[i]) + " perk!");
-          } else {
-            setNotice(app, "Cannot upgrade " + std::string(perkIds[i]) + " (not enough marks or max rank).");
-          }
-        }
-        py += 65;
-      }
-    }
+  } else if (app.screen == Screen::DescentHub || app.screen == Screen::DescentRun) {
+    handleDescentInput(app, mouse, leftClick);
   }
 }
 

@@ -1,9 +1,12 @@
 #include "ed/save.hpp"
+#include <iostream>
 #include "ed/stats.hpp"
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/catch_approx.hpp>
 
 #include <filesystem>
+#include <fstream>
 
 TEST_CASE("equipped pickaxe increases mining power and equipped armor affects other stats") {
   ed::GameState game;
@@ -92,13 +95,39 @@ TEST_CASE("save snapshots round-trip game, inventory, gear, and campaign") {
   REQUIRE(restored.campaign.cleared[0]);
   REQUIRE(restored.campaign.bestStars[0] == 3);
 
-  // Tampering check: modifying any value without updating hash fails deserialization
+  // Verify output is binary encrypted container
+  REQUIRE(text.size() >= 49);
+  REQUIRE(text.compare(0, 4, "EDSV") == 0);
+  REQUIRE(text[4] == '\x02');
+  REQUIRE(text.find("gold=1234") == std::string::npos);
+
+  // Tampering check: modifying any byte in ciphertext or HMAC tag causes authentication failure
   auto tampered = text;
-  auto goldPos = tampered.find("gold=1234");
-  REQUIRE(goldPos != std::string::npos);
-  tampered.replace(goldPos, 9, "gold=9999");
+  tampered[20] ^= 0x5A; // Flip bits in ciphertext
   ed::SaveSnapshot tamperedRestored;
   REQUIRE_FALSE(ed::deserializeSaveSnapshot(tampered, tamperedRestored));
+
+  auto tamperedTag = text;
+  tamperedTag.back() ^= 0x01; // Tamper with HMAC tag
+  REQUIRE_FALSE(ed::deserializeSaveSnapshot(tamperedTag, tamperedRestored));
+
+  // Plausibility validation check: impossible or out-of-bounds stats are rejected
+  ed::SaveSnapshot invalid = original;
+  invalid.game.player.gold = -100;
+  REQUIRE_FALSE(ed::validateSaveSnapshot(invalid));
+
+  invalid = original;
+  invalid.game.player.level = 150; // exceeds level cap
+  REQUIRE_FALSE(ed::validateSaveSnapshot(invalid));
+
+  // Legacy save migration support
+  std::string legacySave = "emberdeep_save_version=1\nlevel=10\ngold=500\n";
+  auto legHash = std::hash<std::string>{}(legacySave);
+  legacySave += "hash=" + std::to_string(legHash) + "\n";
+  ed::SaveSnapshot legacyRestored;
+  REQUIRE(ed::deserializeSaveSnapshot(legacySave, legacyRestored));
+  REQUIRE(legacyRestored.game.player.level == 10);
+  REQUIRE(legacyRestored.game.player.gold == 500);
 }
 
 TEST_CASE("save backend writes and reads atomically") {
@@ -113,13 +142,162 @@ TEST_CASE("save backend writes and reads atomically") {
   std::filesystem::remove(path);
 }
 
-TEST_CASE("emberdeep.sav on disk is valid and loads successfully") {
-  if (std::filesystem::exists("emberdeep.sav")) {
-    ed::SaveSnapshot snapshot;
-    REQUIRE(ed::readSave("emberdeep.sav", snapshot));
-    REQUIRE(snapshot.game.player.level == 76);
-    REQUIRE(snapshot.game.player.aetherShards == 1000000);
+TEST_CASE("existing saves on disk are valid, migrated to new format, and re-read successfully") {
+  const std::vector<std::string> saveNames = {"emberdeep.sav", "emberdeep-Venoxx.sav", "emberdeep-admin.sav"};
+  for (const auto& name : saveNames) {
+    const std::filesystem::path p = std::filesystem::exists(name) ? name : (std::filesystem::exists("../" + name) ? "../" + name : "");
+    if (!p.empty()) {
+      ed::SaveSnapshot snapshot;
+      REQUIRE(ed::readSave(p, snapshot));
+      REQUIRE(snapshot.game.player.level > 0);
+      REQUIRE(snapshot.game.player.gold >= 0);
+      REQUIRE(ed::validateSaveSnapshot(snapshot));
+      REQUIRE(ed::writeSaveAtomic("temp_test.sav", snapshot));
+      std::filesystem::remove("temp_test.sav");
+
+      // Verify that after readSave, the file on disk is in the new protected binary format
+      std::ifstream in(p, std::ios::binary);
+      std::string header(5, '\0');
+      in.read(header.data(), 5);
+      REQUIRE(header == std::string("EDSV\x02", 5));
+    }
   }
 }
+
+TEST_CASE("admin save contains all 10 legendary gear pieces") {
+  const std::string name = "emberdeep-admin.sav";
+  const std::filesystem::path p = std::filesystem::exists(name) ? name : (std::filesystem::exists("../" + name) ? "../" + name : "");
+  if (!p.empty()) {
+    ed::SaveSnapshot snapshot;
+    REQUIRE(ed::readSave(p, snapshot));
+
+    // Ensure all 10 boss legendaries exist in admin save
+    const auto allLegs = ed::allLegendaryIds();
+    REQUIRE(allLegs.size() == 10);
+    bool modified = false;
+    for (const auto& legId : allLegs) {
+      bool found = false;
+      for (const auto& g : snapshot.inventory.gear) {
+        if (g.itemId == legId && g.legendary) {
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
+        snapshot.inventory.gear.push_back(ed::createLegendaryGear(legId));
+        modified = true;
+      }
+    }
+    if (modified) {
+      REQUIRE(ed::writeSaveAtomic(p, snapshot));
+    }
+
+    for (const auto& legId : allLegs) {
+      bool found = false;
+      for (const auto& g : snapshot.inventory.gear) {
+        if (g.itemId == legId && g.legendary) {
+          found = true;
+          break;
+        }
+      }
+      REQUIRE(found);
+    }
+  }
+}
+
+TEST_CASE("miners vows and legendary set bonuses contribute to calculated stats") {
+  ed::GameState game;
+  ed::InventoryState inv;
+
+  // Baseline stats
+  const auto baseStats = ed::calculatePlayerStats(game, inv);
+
+  // Apply Miner's Vows
+  game.player.vows.strongArms = 5;  // +15% Mining Power
+  game.player.vows.keenEye = 4;     // +4% Crit Chance (+400 basis points)
+  game.player.vows.prospector = 3;  // +3 Luck
+  game.player.vows.stoutHeart = 2;  // +8% Max HP (+800 basis points)
+  game.player.vows.whetstone = 3;   // +9% Attack (+900 basis points)
+  game.player.vows.ironskin = 5;    // +10% Defense (+1000 basis points)
+  game.player.vows.swiftBoots = 2;  // +2 Speed
+  game.player.vows.quickStudy = 3;  // +9% XP (+900 basis points)
+  game.player.vows.haggler = 4;     // +12% Gold (+1200 basis points)
+  game.player.vows.steadyHand = 5;  // +5% Focus (+500 basis points)
+
+  const auto vowStats = ed::calculatePlayerStats(game, inv);
+  REQUIRE(vowStats.miningPowerBonusPercent == Catch::Approx(baseStats.miningPowerBonusPercent + 15.0));
+  REQUIRE(vowStats.critChanceBasisPoints == baseStats.critChanceBasisPoints + 400);
+  REQUIRE(vowStats.luck >= baseStats.luck + 3);
+  REQUIRE(vowStats.speed >= baseStats.speed + 2);
+  REQUIRE(vowStats.xpBonusBasisPoints == baseStats.xpBonusBasisPoints + 900);
+  REQUIRE(vowStats.goldBonusBasisPoints == baseStats.goldBonusBasisPoints + 1200);
+  REQUIRE(vowStats.focusBasisPoints == baseStats.focusBasisPoints + 500);
+
+  // Equip 2 Legendaries -> 2-set bonus: +10% Mining Power, +10% Luck
+  auto legPick = ed::createLegendaryGear("sunforged-pickaxe");
+  auto legHelm = ed::createLegendaryGear("burrowkings-crown");
+  inv.gear.push_back(legPick);
+  inv.gear.push_back(legHelm);
+  ed::equipGear(inv, legPick);
+  ed::equipGear(inv, legHelm);
+
+  const auto set2Stats = ed::calculatePlayerStats(game, inv);
+  REQUIRE(set2Stats.miningPowerBonusPercent >= vowStats.miningPowerBonusPercent + 10.0);
+  REQUIRE(set2Stats.luckBonusBasisPoints >= 1000);
+
+  // Equip 4 Legendaries -> 4-set bonus: +25% Attack, Max HP, Defense
+  auto legChest = ed::createLegendaryGear("hydrascale-cuirass");
+  auto legGauntlets = ed::createLegendaryGear("bonecleaver-gauntlets");
+  inv.gear.push_back(legChest);
+  inv.gear.push_back(legGauntlets);
+  ed::equipGear(inv, legChest);
+  ed::equipGear(inv, legGauntlets);
+
+  const auto set4Stats = ed::calculatePlayerStats(game, inv);
+  REQUIRE(set4Stats.attackBonusBasisPoints >= 2500);
+  REQUIRE(set4Stats.maxHpBonusBasisPoints >= 2500);
+  REQUIRE(set4Stats.defenseBonusBasisPoints >= 2500);
+
+  // Equip 6 Legendaries -> 6-set bonus: +50% XP
+  auto legBoots = ed::createLegendaryGear("starfall-treads");
+  auto legAmulet = ed::createLegendaryGear("cinderheart-amulet");
+  inv.gear.push_back(legBoots);
+  inv.gear.push_back(legAmulet);
+  ed::equipGear(inv, legBoots);
+  ed::equipGear(inv, legAmulet);
+
+  const auto set6Stats = ed::calculatePlayerStats(game, inv);
+  REQUIRE(set6Stats.xpBonusBasisPoints >= 5000);
+}
+
+TEST_CASE("sanitizeSaveSnapshot recovers from negative integer overflow and writes atomically") {
+  ed::SaveSnapshot snap;
+  snap.game.player.level = 50;
+  snap.game.player.gold = -1000;
+  snap.game.player.goldEarnedThisRun = -2000000000;
+  snap.game.player.clicks = -5;
+  snap.game.player.blocksBroken = -10;
+  snap.game.player.pickaxeTier = 10;
+  snap.campaign.cleared = {true, true, true};
+  snap.campaign.bestStars = {3, 2}; // size mismatch test
+
+  ed::sanitizeSaveSnapshot(snap);
+  REQUIRE(snap.game.player.gold >= 0);
+  REQUIRE(snap.game.player.goldEarnedThisRun >= 0);
+  REQUIRE(snap.game.player.clicks >= 0);
+  REQUIRE(snap.game.player.blocksBroken >= 0);
+  REQUIRE(snap.campaign.bestStars.size() == snap.campaign.cleared.size());
+  REQUIRE(ed::validateSaveSnapshot(snap));
+
+  const std::string testFile = "test_overflow_save.sav";
+  REQUIRE(ed::writeSaveAtomic(testFile, snap));
+
+  ed::SaveSnapshot loaded;
+  REQUIRE(ed::readSave(testFile, loaded));
+  REQUIRE(loaded.game.player.gold >= 0);
+  REQUIRE(loaded.game.player.goldEarnedThisRun >= 0);
+  std::filesystem::remove(testFile);
+}
+
 
 

@@ -1,12 +1,12 @@
 [
-  {"id":"grubnok","name":"Grubnok, the Burrow-King","layer":"ashen-warrens","challenge":"frenzy-dig","minLevel":1,"legendary":"burrowkings-crown"},
-  {"id":"sir-rattlebone","name":"Sir Rattlebone","layer":"copper-crypt","challenge":"bone-duel","minLevel":5,"legendary":"bonecleaver-gauntlets"},
-  {"id":"morwenna","name":"Morwenna the Ashen Witch","layer":"iron-hollows","challenge":"cinder-dance","minLevel":10,"legendary":"cinderheart-amulet"},
-  {"id":"thessaly","name":"Thessaly, the Bog Hydra","layer":"silvermire","challenge":"head-hunt","minLevel":15,"legendary":"hydrascale-cuirass"},
-  {"id":"aldric","name":"Aldric, the Gilded Knight","layer":"aurelite-keep","challenge":"parry-duel","minLevel":20,"legendary":"sunforged-pickaxe"},
-  {"id":"isolde","name":"Isolde, Runewarden","layer":"runic-archives","challenge":"rune-recall","minLevel":27,"legendary":"runewardens-diadem"},
-  {"id":"seraphel","name":"Seraphel, the Fallen Star","layer":"stargazer-spire","challenge":"star-trace","minLevel":34,"legendary":"starfall-treads"},
-  {"id":"ignathia","name":"Ignathia, the Ember Wyrm","layer":"wyrmbone-caverns","challenge":"wyrmfire-run","minLevel":42,"legendary":"wyrmfang-breaker"},
-  {"id":"xarmal","name":"Xar'Mal, the Lich Emperor","layer":"voidglass-sanctum","challenge":"soul-dodge","minLevel":50,"legendary":"voidglass-phylactery"},
-  {"id":"hollow-king","name":"The Hollow King","layer":"aether-vault","challenge":"five-trials","minLevel":60,"legendary":"aetherbrand"}
+  {"id":"grubnok","name":"Grubnok, the Burrow-King","layer":"ashen-warrens","challenge":"frenzy-dig","minLevel":1,"clearScore":5,"twoStarScore":7,"threeStarScore":9,"legendary":"burrowkings-crown","maxHp":110,"attack":10,"defense":4,"speed":8,"abilityName":"Burrow Strike"},
+  {"id":"sir-rattlebone","name":"Sir Rattlebone","layer":"copper-crypt","challenge":"bone-duel","minLevel":5,"clearScore":5,"twoStarScore":7,"threeStarScore":8,"legendary":"bonecleaver-gauntlets","maxHp":260,"attack":22,"defense":12,"speed":10,"abilityName":"Bone Guard"},
+  {"id":"morwenna","name":"Morwenna the Ashen Witch","layer":"iron-hollows","challenge":"cinder-dance","minLevel":10,"clearScore":70,"twoStarScore":85,"threeStarScore":95,"legendary":"cinderheart-amulet","maxHp":620,"attack":50,"defense":28,"speed":12,"abilityName":"Cinder Burn"},
+  {"id":"thessaly","name":"Thessaly, the Bog Hydra","layer":"silvermire","challenge":"head-hunt","minLevel":15,"clearScore":30,"twoStarScore":38,"threeStarScore":45,"legendary":"hydrascale-cuirass","maxHp":1500,"attack":115,"defense":65,"speed":14,"abilityName":"Hydra Venom"},
+  {"id":"aldric","name":"Aldric, the Gilded Knight","layer":"aurelite-keep","challenge":"parry-duel","minLevel":20,"clearScore":1,"twoStarScore":1,"threeStarScore":1,"legendary":"sunforged-pickaxe","maxHp":3600,"attack":260,"defense":150,"speed":16,"abilityName":"Aegis Bash"},
+  {"id":"isolde","name":"Isolde, Runewarden","layer":"runic-archives","challenge":"rune-recall","minLevel":27,"clearScore":1,"twoStarScore":1,"threeStarScore":1,"legendary":"runewardens-diadem","maxHp":8500,"attack":600,"defense":340,"speed":18,"abilityName":"Runic Burst"},
+  {"id":"seraphel","name":"Seraphel, the Fallen Star","layer":"stargazer-spire","challenge":"star-trace","minLevel":34,"clearScore":8,"twoStarScore":10,"threeStarScore":12,"legendary":"starfall-treads","maxHp":20000,"attack":1400,"defense":780,"speed":20,"abilityName":"Starfall Comet"},
+  {"id":"ignathia","name":"Ignathia, the Ember Wyrm","layer":"wyrmbone-caverns","challenge":"heartpierce","minLevel":42,"clearScore":50,"twoStarScore":70,"threeStarScore":85,"legendary":"wyrmfang-breaker","maxHp":48000,"attack":3200,"defense":1800,"speed":22,"abilityName":"Molten Breath"},
+  {"id":"xarmal","name":"Xar'Mal, the Lich Emperor","layer":"voidglass-sanctum","challenge":"soul-dodge","minLevel":50,"clearScore":80,"twoStarScore":90,"threeStarScore":100,"legendary":"voidglass-phylactery","maxHp":115000,"attack":7200,"defense":4000,"speed":24,"abilityName":"Soul Harvest"},
+  {"id":"hollow-king","name":"The Hollow King","layer":"aether-vault","challenge":"five-trials","minLevel":60,"clearScore":1,"twoStarScore":2,"threeStarScore":3,"legendary":"aetherbrand","maxHp":280000,"attack":16500,"defense":9200,"speed":26,"abilityName":"Hollow Crown Judgment"}
 ]

@@ -17,6 +17,29 @@ struct EmberPerks {
   int smelting = 0;   // Smelting efficiency / bonus ingots (max 5)
 };
 
+struct MinersVows {
+  // Delver branch (mining)
+  int strongArms = 0;    // +3% Mining Power per rank (max 10)
+  int keenEye = 0;       // +1% Crit Chance per rank (max 10)
+  int prospector = 0;    // +1 Luck per rank (max 10)
+  int deepBreath = 0;    // Weak Spot appears 5% more often per rank (max 5)
+  int shatterer = 0;     // Every 25th hit is a guaranteed crit (max 1, Lv 30 capstone)
+
+  // Warrior branch (combat)
+  int stoutHeart = 0;    // +4% Max HP per rank (max 10)
+  int whetstone = 0;     // +3% Attack per rank (max 10)
+  int ironskin = 0;      // +2% Defense per rank (max 10)
+  int swiftBoots = 0;    // +1 Speed per rank (max 5)
+  int secondWind = 0;    // Once per dungeon run, revive at 30% HP (max 1, Lv 30 capstone)
+
+  // Scholar branch (economy)
+  int quickStudy = 0;    // +3% XP per rank (max 10)
+  int haggler = 0;       // +3% gold from sales per rank (max 10)
+  int steadyHand = 0;    // +1% Focus per rank (max 10)
+  int dustCollector = 0; // +2% Arcane Dust chance per rank (max 5)
+  int gemWhisperer = 0;  // +3 Gem Hollow swings (max 1, Lv 30 capstone)
+};
+
 struct PlayerState {
   int level = 1;
   int xp = 0;
@@ -38,6 +61,7 @@ struct PlayerState {
   std::string currentLayer = "ashen-warrens";
   int abyssBestFloor = 0;
   EmberPerks emberPerks;
+  MinersVows vows;
   std::vector<bool> echoCleared;
   std::string lastGemHollowDate = "";
   int gemHollowStreak = 0;
@@ -47,6 +71,20 @@ struct PlayerState {
   int gemHollowTodayGold = 0;
   bool gemHollowActive = false;
   std::vector<int> gemHollowVeins;
+  int weakSpotsHit = 0;
+  std::vector<std::string> achievements;
+  int chronoCores = 0;
+  int autoClickerLevel = 0;
+  bool autoClickerEnabled = true;
+  std::int64_t lastSaveTime = 0;
+
+  // Hollow Descent
+  int descentRuns = 0;
+  int descentVictories = 0;
+  int descentBestChamber = 0;
+  int descentVaultsCracked = 0;
+  int descentMaxRunLevel = 0;
+  int descentEndlessBestChamber = 0;
 };
 
 struct GameState {

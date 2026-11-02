@@ -115,6 +115,21 @@ std::string serializeGameState(const GameState& game) {
   out << "perk_potential=" << game.player.emberPerks.potential << '\n';
   out << "perk_armory=" << game.player.emberPerks.armory << '\n';
   out << "perk_smelting=" << game.player.emberPerks.smelting << '\n';
+  out << "vow_strong_arms=" << game.player.vows.strongArms << '\n';
+  out << "vow_keen_eye=" << game.player.vows.keenEye << '\n';
+  out << "vow_prospector=" << game.player.vows.prospector << '\n';
+  out << "vow_deep_breath=" << game.player.vows.deepBreath << '\n';
+  out << "vow_shatterer=" << game.player.vows.shatterer << '\n';
+  out << "vow_stout_heart=" << game.player.vows.stoutHeart << '\n';
+  out << "vow_whetstone=" << game.player.vows.whetstone << '\n';
+  out << "vow_ironskin=" << game.player.vows.ironskin << '\n';
+  out << "vow_swift_boots=" << game.player.vows.swiftBoots << '\n';
+  out << "vow_second_wind=" << game.player.vows.secondWind << '\n';
+  out << "vow_quick_study=" << game.player.vows.quickStudy << '\n';
+  out << "vow_haggler=" << game.player.vows.haggler << '\n';
+  out << "vow_steady_hand=" << game.player.vows.steadyHand << '\n';
+  out << "vow_dust_collector=" << game.player.vows.dustCollector << '\n';
+  out << "vow_gem_whisperer=" << game.player.vows.gemWhisperer << '\n';
   out << "echo_cleared=";
   for (std::size_t i = 0; i < game.player.echoCleared.size(); ++i) {
     if (i > 0) out << ",";
@@ -134,6 +149,23 @@ std::string serializeGameState(const GameState& game) {
     out << game.player.gemHollowVeins[i];
   }
   out << '\n';
+  out << "weak_spots_hit=" << game.player.weakSpotsHit << '\n';
+  out << "achievements=";
+  for (std::size_t i = 0; i < game.player.achievements.size(); ++i) {
+    if (i > 0) out << ",";
+    out << game.player.achievements[i];
+  }
+  out << '\n';
+  out << "chrono_cores=" << game.player.chronoCores << '\n';
+  out << "auto_clicker_level=" << game.player.autoClickerLevel << '\n';
+  out << "auto_clicker_enabled=" << (game.player.autoClickerEnabled ? 1 : 0) << '\n';
+  out << "last_save_time=" << game.player.lastSaveTime << '\n';
+  out << "descent_runs=" << game.player.descentRuns << '\n';
+  out << "descent_victories=" << game.player.descentVictories << '\n';
+  out << "descent_best_chamber=" << game.player.descentBestChamber << '\n';
+  out << "descent_vaults_cracked=" << game.player.descentVaultsCracked << '\n';
+  out << "descent_max_run_level=" << game.player.descentMaxRunLevel << '\n';
+  out << "descent_endless_best_chamber=" << game.player.descentEndlessBestChamber << '\n';
   return out.str();
 }
 
@@ -248,6 +280,36 @@ bool deserializeGameState(const std::string& text, GameState& game) {
       if (!parseIntValue(value, game.player.emberPerks.armory)) return false;
     } else if (key == "perk_smelting") {
       if (!parseIntValue(value, game.player.emberPerks.smelting)) return false;
+    } else if (key == "vow_strong_arms") {
+      if (!parseIntValue(value, game.player.vows.strongArms)) return false;
+    } else if (key == "vow_keen_eye") {
+      if (!parseIntValue(value, game.player.vows.keenEye)) return false;
+    } else if (key == "vow_prospector") {
+      if (!parseIntValue(value, game.player.vows.prospector)) return false;
+    } else if (key == "vow_deep_breath") {
+      if (!parseIntValue(value, game.player.vows.deepBreath)) return false;
+    } else if (key == "vow_shatterer") {
+      if (!parseIntValue(value, game.player.vows.shatterer)) return false;
+    } else if (key == "vow_stout_heart") {
+      if (!parseIntValue(value, game.player.vows.stoutHeart)) return false;
+    } else if (key == "vow_whetstone") {
+      if (!parseIntValue(value, game.player.vows.whetstone)) return false;
+    } else if (key == "vow_ironskin") {
+      if (!parseIntValue(value, game.player.vows.ironskin)) return false;
+    } else if (key == "vow_swift_boots") {
+      if (!parseIntValue(value, game.player.vows.swiftBoots)) return false;
+    } else if (key == "vow_second_wind") {
+      if (!parseIntValue(value, game.player.vows.secondWind)) return false;
+    } else if (key == "vow_quick_study") {
+      if (!parseIntValue(value, game.player.vows.quickStudy)) return false;
+    } else if (key == "vow_haggler") {
+      if (!parseIntValue(value, game.player.vows.haggler)) return false;
+    } else if (key == "vow_steady_hand") {
+      if (!parseIntValue(value, game.player.vows.steadyHand)) return false;
+    } else if (key == "vow_dust_collector") {
+      if (!parseIntValue(value, game.player.vows.dustCollector)) return false;
+    } else if (key == "vow_gem_whisperer") {
+      if (!parseIntValue(value, game.player.vows.gemWhisperer)) return false;
     } else if (key == "echo_cleared") {
       game.player.echoCleared.clear();
       std::istringstream stream(value);
@@ -281,6 +343,43 @@ bool deserializeGameState(const std::string& text, GameState& game) {
       while (std::getline(veinsInput, field, ',')) {
         if (!field.empty()) {
           game.player.gemHollowVeins.push_back(std::stoi(field));
+        }
+      }
+    } else if (key == "weak_spots_hit") {
+      if (!parseIntValue(value, game.player.weakSpotsHit)) return false;
+    } else if (key == "chrono_cores") {
+      if (!parseIntValue(value, game.player.chronoCores)) return false;
+    } else if (key == "auto_clicker_level") {
+      if (!parseIntValue(value, game.player.autoClickerLevel)) return false;
+    } else if (key == "auto_clicker_enabled") {
+      int active = 1;
+      if (!parseIntValue(value, active)) return false;
+      game.player.autoClickerEnabled = (active != 0);
+    } else if (key == "last_save_time") {
+      try {
+        game.player.lastSaveTime = std::stoll(value);
+      } catch (...) {
+        game.player.lastSaveTime = 0;
+      }
+    } else if (key == "descent_runs") {
+      if (!parseIntValue(value, game.player.descentRuns)) return false;
+    } else if (key == "descent_victories") {
+      if (!parseIntValue(value, game.player.descentVictories)) return false;
+    } else if (key == "descent_best_chamber") {
+      if (!parseIntValue(value, game.player.descentBestChamber)) return false;
+    } else if (key == "descent_vaults_cracked") {
+      if (!parseIntValue(value, game.player.descentVaultsCracked)) return false;
+    } else if (key == "descent_max_run_level") {
+      if (!parseIntValue(value, game.player.descentMaxRunLevel)) return false;
+    } else if (key == "descent_endless_best_chamber") {
+      if (!parseIntValue(value, game.player.descentEndlessBestChamber)) return false;
+    } else if (key == "achievements") {
+      game.player.achievements.clear();
+      std::istringstream achInput(value);
+      std::string field;
+      while (std::getline(achInput, field, ',')) {
+        if (!field.empty()) {
+          game.player.achievements.push_back(field);
         }
       }
     }

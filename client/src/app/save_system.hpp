@@ -19,6 +19,9 @@ void loadSave(AppState& app);
 void switchSave(AppState& app, const std::filesystem::path& newPath);
 void createNewSave(AppState& app, const std::string& rawName);
 
+void saveDescentMeta(const std::filesystem::path& baseSavePath, const ed::descent::DescentSave& meta);
+void loadDescentMeta(const std::filesystem::path& baseSavePath, ed::descent::DescentSave& meta);
+
 void handleSaveSelectInput(AppState& app);
 void drawSaveSelectModal(const AppState& app);
 

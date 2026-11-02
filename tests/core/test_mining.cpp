@@ -1,4 +1,5 @@
 #include "ed/mining.hpp"
+#include "ed/postgame.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -72,7 +73,7 @@ TEST_CASE("deep strata block generation scales stats and calculates shard drop c
   REQUIRE(d1.layerId == "aether-vault");
   REQUIRE(d1.materialId == "aetherium");
   REQUIRE(d1.maxHp >= 282620); // 108700 * 2.6
-  REQUIRE(d1.xp >= 31680);     // 13200 * 2.4
+  REQUIRE(d1.xp >= 13200);
   REQUIRE(d1.dropMultiplier >= 2); // 1 + 0.5*1 = 1.5 -> 2
   REQUIRE(d1.aetherShardChanceBasisPoints == 250); // 1 * 250
 
@@ -85,7 +86,9 @@ TEST_CASE("deep strata block generation scales stats and calculates shard drop c
   const auto d5 = ed::generateDeepStrataBlock(layers, materials, 5, 0, rng);
   REQUIRE(d5.depth == 5);
   REQUIRE(d5.maxHp > d1.maxHp);
-  REQUIRE(d5.xp > d1.xp);
+  // XP does not increase with depth; matches depth 0
+  REQUIRE(ed::deepStrataBlock(5).xp == ed::deepStrataBlock(0).xp);
+  REQUIRE(ed::deepStrataBlock(5).xp == 13200);
   REQUIRE(d5.dropMultiplier >= 4); // 1 + 0.5*5 = 3.5 -> 4
   REQUIRE(d5.aetherShardChanceBasisPoints == 1250); // 5 * 250 = 1250 bp (12.5%)
 

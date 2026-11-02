@@ -38,3 +38,26 @@ TEST_CASE("mining damage applies hardness and crit damage") {
 TEST_CASE("progress score follows the server-defined formula") {
   REQUIRE(ed::progressScore(1, 2, 3, 4, 5) == 1'000'000'000ULL + 20'000'000ULL + 3'000'000ULL + 4'000ULL + 2ULL);
 }
+
+TEST_CASE("formatCount abbreviates numbers with k, m, b suffixes and fractional precision") {
+  REQUIRE(ed::formatCount(0) == "0");
+  REQUIRE(ed::formatCount(12) == "12");
+  REQUIRE(ed::formatCount(999) == "999");
+  REQUIRE(ed::formatCount(1000) == "1k");
+  REQUIRE(ed::formatCount(1050) == "1.05k");
+  REQUIRE(ed::formatCount(1200) == "1.2k");
+  REQUIRE(ed::formatCount(1250) == "1.25k");
+  REQUIRE(ed::formatCount(1234) == "1.23k");
+  REQUIRE(ed::formatCount(1500) == "1.5k");
+  REQUIRE(ed::formatCount(10000) == "10k");
+  REQUIRE(ed::formatCount(10500) == "10.5k");
+  REQUIRE(ed::formatCount(999990) == "999.99k");
+  REQUIRE(ed::formatCount(1000000) == "1m");
+  REQUIRE(ed::formatCount(1200000) == "1.2m");
+  REQUIRE(ed::formatCount(1230000) == "1.23m");
+  REQUIRE(ed::formatCount(1234000) == "1.234m");
+  REQUIRE(ed::formatCount(1234567) == "1.235m");
+  REQUIRE(ed::formatCount(1000000000) == "1b");
+  REQUIRE(ed::formatCount(1234000000) == "1.234b");
+  REQUIRE(ed::formatCount(-1500) == "-1.5k");
+}

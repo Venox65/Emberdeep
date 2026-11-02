@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cctype>
 #include <chrono>
+#include <ctime>
 #include <fstream>
 #include <mutex>
 #include <string>
@@ -99,6 +100,13 @@ std::vector<SaveFileInfo> scanSaveFiles(const std::filesystem::path& currentSave
 }
 
 void requestSave(AppState& app) {
+  app.game.player.lastSaveTime = static_cast<std::int64_t>(std::time(nullptr));
+  if (app.game.player.goldEarnedThisRun < 0) {
+    app.game.player.goldEarnedThisRun = std::numeric_limits<int>::max();
+  }
+  if (app.game.player.gold < 0) {
+    app.game.player.gold = std::numeric_limits<int>::max();
+  }
   {
     std::lock_guard lock(app.saveMutex);
     app.pendingSave = makeSnapshot(app);
@@ -108,13 +116,22 @@ void requestSave(AppState& app) {
 }
 
 void saveNow(AppState& app) {
+  app.game.player.lastSaveTime = static_cast<std::int64_t>(std::time(nullptr));
+  if (app.game.player.goldEarnedThisRun < 0) {
+    app.game.player.goldEarnedThisRun = std::numeric_limits<int>::max();
+  }
+  if (app.game.player.gold < 0) {
+    app.game.player.gold = std::numeric_limits<int>::max();
+  }
   const auto snapshot = makeSnapshot(app);
+  std::lock_guard lock(app.saveMutex);
   if (!ed::writeSaveAtomic(app.savePath, snapshot)) {
     setNotice(app, "Save failed: local save could not be written.");
     return;
   }
   setNotice(app, "Local save stored.");
   app.game.dirty = false;
+  saveDescentMeta(app.savePath, app.descentMeta);
 }
 
 void startSaveWorker(AppState& app) {
@@ -132,6 +149,7 @@ void startSaveWorker(AppState& app) {
         app.pendingSave.reset();
       }
       if (snapshot.has_value()) {
+        std::lock_guard lock(app.saveMutex);
         ed::writeSaveAtomic(app.savePath, *snapshot);
       }
     }
@@ -140,6 +158,7 @@ void startSaveWorker(AppState& app) {
 
 void stopSaveWorker(AppState& app) {
   requestSave(app);
+  saveDescentMeta(app.savePath, app.descentMeta);
   {
     std::lock_guard lock(app.saveMutex);
     app.saveWorkerRunning = false;
@@ -154,11 +173,73 @@ void loadSave(AppState& app) {
     app.game = snapshot.game;
     app.inventory = snapshot.inventory;
     app.campaign = snapshot.campaign;
+
+    const auto now = static_cast<std::int64_t>(std::time(nullptr));
+    const auto lastTime = app.game.player.lastSaveTime;
+    if (lastTime > 0 && now > lastTime && app.game.player.autoClickerLevel >= 1 && app.game.player.autoClickerEnabled) {
+      const auto secondsOffline = now - lastTime;
+      constexpr std::int64_t kMinOfflinePopupSeconds = 30 * 60; // 30 minutes
+      if (secondsOffline >= kMinOfflinePopupSeconds) {
+        auto result = ed::calculateOfflineProgress(app.game, app.inventory, app.layers, app.materials, secondsOffline);
+        if (result.blocksBroken > 0 || result.clicks > 0) {
+          ed::applyOfflineProgress(app.game, app.inventory, result);
+          app.offlineResult = result;
+          app.offlinePopupActive = true;
+        }
+      }
+    }
+    app.game.player.lastSaveTime = now;
+
+    // Ensure all pickaxes have at least 1 gem socket
+    bool hasPickaxe = false;
+    for (auto& piece : app.inventory.gear) {
+      if (piece.slot == "pickaxe") {
+        hasPickaxe = true;
+        if (piece.sockets == 0) {
+          piece.sockets = std::max(1, ed::gearSocketCount(piece.tier, piece.legendary, piece.upgradeLevel));
+        }
+      }
+    }
+    if (!hasPickaxe) {
+      const int t = std::clamp(app.game.player.pickaxeTier, 1, 10);
+      const std::string id = std::string(materialIdForTier(t)) + "-pickaxe";
+      const std::string name = ed::fantasyGearName(t, "pickaxe");
+      GearPiece starterPick{"pickaxe", id, name, t, 0, std::max(1, ed::gearSocketCount(t)), false};
+      app.inventory.gear.insert(app.inventory.gear.begin(), starterPick);
+      if (app.inventory.equipped.pickaxeId.empty()) {
+        app.inventory.equipped.pickaxeId = id;
+      }
+    }
+
+    // Ensure all 10 legendaries exist if playing on admin save
+    if (app.savePath.string().find("admin") != std::string::npos) {
+      const auto allLegs = ed::allLegendaryIds();
+      for (const auto& legId : allLegs) {
+        bool found = false;
+        for (const auto& g : app.inventory.gear) {
+          if (g.itemId == legId && g.legendary) {
+            found = true;
+            break;
+          }
+        }
+        if (!found) {
+          app.inventory.gear.push_back(ed::createLegendaryGear(legId));
+        }
+      }
+    }
   } else {
     app.game = ed::GameState{};
     app.inventory = ed::InventoryState{};
     app.campaign = ed::createCampaignState(10);
+    app.game.player.lastSaveTime = static_cast<std::int64_t>(std::time(nullptr));
+    const int t = 1;
+    const std::string id = "ashen-stone-pickaxe";
+    const std::string name = ed::fantasyGearName(t, "pickaxe");
+    GearPiece starterPick{"pickaxe", id, name, t, 0, 1, false};
+    app.inventory.gear.push_back(starterPick);
+    app.inventory.equipped.pickaxeId = id;
   }
+  loadDescentMeta(app.savePath, app.descentMeta);
 }
 
 void switchSave(AppState& app, const std::filesystem::path& newPath) {
@@ -409,7 +490,7 @@ void drawSaveSelectModal(const AppState& app) {
 
       if (info.valid) {
         const std::string details = "Lv " + std::to_string(info.level) +
-                                    "   |   Gold " + std::to_string(info.gold) +
+                                    "   |   Gold " + ed::formatCount(info.gold) +
                                     "   |   Bosses " + std::to_string(info.bossesCleared) + "/10" +
                                     "   |   Ascensions " + std::to_string(info.ascensions);
         DrawText(details.c_str(), static_cast<int>(slotRec.x) + 16, itemY + 36, 13,
@@ -478,6 +559,81 @@ void drawSaveSelectModal(const AppState& app) {
   DrawRectangleRoundedLines(createBtn, 0.15F, 4, Color{100, 210, 140, 255});
   DrawText("+ CREATE SAVE", static_cast<int>(createBtn.x) + 20, static_cast<int>(createBtn.y) + 10,
            14, WHITE);
+}
+
+void saveDescentMeta(const std::filesystem::path& baseSavePath, const ed::descent::DescentSave& meta) {
+  const auto metaPath = baseSavePath.string() + ".descent";
+  std::ofstream out(metaPath);
+  if (!out.is_open()) return;
+  out << "embers=" << meta.embers << "\n";
+  out << "soulFragments=" << meta.soulFragments << "\n";
+  out << "crownShards=" << meta.crownShards << "\n";
+  out << "anvilMight=" << meta.anvilMight << "\n";
+  out << "anvilVitality=" << meta.anvilVitality << "\n";
+  out << "anvilSwiftness=" << meta.anvilSwiftness << "\n";
+  out << "anvilMagnetism=" << meta.anvilMagnetism << "\n";
+  out << "anvilResilience=" << meta.anvilResilience << "\n";
+  out << "anvilGreed=" << meta.anvilGreed << "\n";
+  out << "anvilRerolls=" << meta.anvilRerolls << "\n";
+  out << "anvilBanishes=" << meta.anvilBanishes << "\n";
+  out << "selectedClass=" << static_cast<int>(meta.selectedClass) << "\n";
+  out << "pactClaws=" << meta.pactClaws << "\n";
+  out << "pactFrenzy=" << meta.pactFrenzy << "\n";
+  out << "pactFlesh=" << meta.pactFlesh << "\n";
+  out << "pactShadows=" << meta.pactShadows << "\n";
+  out << "pactNumbers=" << meta.pactNumbers << "\n";
+  out << "pactWounds=" << meta.pactWounds << "\n";
+  out << "highestBiome=" << meta.highestBiome << "\n";
+  out << "bestHeat=" << meta.bestHeat << "\n";
+  out << "victories=" << meta.victories << "\n";
+  out << "lifetimeKills=" << meta.lifetimeKills << "\n";
+  out << "lifetimeRoomsCleared=" << meta.lifetimeRoomsCleared << "\n";
+  out << "bestEndlessChamber=" << meta.bestEndlessChamber << "\n";
+  out << "provisionStew=" << (meta.provisionStew ? 1 : 0) << "\n";
+  out << "provisionBrew=" << (meta.provisionBrew ? 1 : 0) << "\n";
+  out << "provisionOil=" << (meta.provisionOil ? 1 : 0) << "\n";
+}
+
+void loadDescentMeta(const std::filesystem::path& baseSavePath, ed::descent::DescentSave& meta) {
+  const auto metaPath = baseSavePath.string() + ".descent";
+  std::ifstream in(metaPath);
+  if (!in.is_open()) return;
+  std::string line;
+  while (std::getline(in, line)) {
+    const auto eq = line.find('=');
+    if (eq == std::string::npos) continue;
+    const std::string key = line.substr(0, eq);
+    const std::string val = line.substr(eq + 1);
+    try {
+      if (key == "embers") meta.embers = std::stoi(val);
+      else if (key == "soulFragments") meta.soulFragments = std::stoi(val);
+      else if (key == "crownShards") meta.crownShards = std::stoi(val);
+      else if (key == "anvilMight") meta.anvilMight = std::stoi(val);
+      else if (key == "anvilVitality") meta.anvilVitality = std::stoi(val);
+      else if (key == "anvilSwiftness") meta.anvilSwiftness = std::stoi(val);
+      else if (key == "anvilMagnetism") meta.anvilMagnetism = std::stoi(val);
+      else if (key == "anvilResilience") meta.anvilResilience = std::stoi(val);
+      else if (key == "anvilGreed") meta.anvilGreed = std::stoi(val);
+      else if (key == "anvilRerolls") meta.anvilRerolls = std::stoi(val);
+      else if (key == "anvilBanishes") meta.anvilBanishes = std::stoi(val);
+      else if (key == "selectedClass") meta.selectedClass = static_cast<ed::descent::ClassId>(std::stoi(val));
+      else if (key == "pactClaws") meta.pactClaws = std::stoi(val);
+      else if (key == "pactFrenzy") meta.pactFrenzy = std::stoi(val);
+      else if (key == "pactFlesh") meta.pactFlesh = std::stoi(val);
+      else if (key == "pactShadows") meta.pactShadows = std::stoi(val);
+      else if (key == "pactNumbers") meta.pactNumbers = std::stoi(val);
+      else if (key == "pactWounds") meta.pactWounds = std::stoi(val);
+      else if (key == "highestBiome") meta.highestBiome = std::stoi(val);
+      else if (key == "bestHeat") meta.bestHeat = std::stoi(val);
+      else if (key == "victories") meta.victories = std::stoi(val);
+      else if (key == "lifetimeKills") meta.lifetimeKills = std::stoi(val);
+      else if (key == "lifetimeRoomsCleared") meta.lifetimeRoomsCleared = std::stoi(val);
+      else if (key == "bestEndlessChamber") meta.bestEndlessChamber = std::stoi(val);
+      else if (key == "provisionStew") meta.provisionStew = (std::stoi(val) != 0);
+      else if (key == "provisionBrew") meta.provisionBrew = (std::stoi(val) != 0);
+      else if (key == "provisionOil") meta.provisionOil = (std::stoi(val) != 0);
+    } catch (...) {}
+  }
 }
 
 } // namespace ed::app

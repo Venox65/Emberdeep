@@ -85,6 +85,7 @@ DungeonRunResult simulateDungeonRun(const DungeonPlayerStats& player,
   std::int64_t playerHp = std::max<std::int64_t>(1, player.maxHp);
   const double tier = static_cast<double>(zone.tier);
   int poisonRounds = 0; // Poison is on the player
+  bool secondWindUsed = false;
 
   struct EnemyInstance {
     int id;
@@ -231,6 +232,12 @@ DungeonRunResult simulateDungeonRun(const DungeonPlayerStats& player,
         --poisonRounds;
         result.log.push_back({DungeonEventType::PoisonTick, "", pDmg, std::max<std::int64_t>(0, playerHp), 0, false});
       }
+
+      if (playerHp <= 0 && player.secondWind && !secondWindUsed) {
+        secondWindUsed = true;
+        playerHp = std::max<std::int64_t>(1, player.maxHp * 30 / 100);
+        result.log.push_back({DungeonEventType::FloorStart, "Second Wind", playerHp, playerHp, 0, false});
+      }
     }
 
     if (playerHp <= 0 || result.rounds >= 500) {
@@ -259,6 +266,7 @@ DungeonRunResult simulateAbyssRun(const DungeonPlayerStats& player,
   result.isAbyss = true;
   std::int64_t playerHp = std::max<std::int64_t>(1, player.maxHp);
   int poisonRounds = 0;
+  bool secondWindUsed = false;
 
   struct EnemyInstance {
     int id;
@@ -421,6 +429,12 @@ DungeonRunResult simulateAbyssRun(const DungeonPlayerStats& player,
         playerHp = std::max<std::int64_t>(0, playerHp - pDmg);
         --poisonRounds;
         result.log.push_back({DungeonEventType::PoisonTick, "", pDmg, playerHp, 0, false});
+      }
+
+      if (playerHp <= 0 && player.secondWind && !secondWindUsed) {
+        secondWindUsed = true;
+        playerHp = std::max<std::int64_t>(1, player.maxHp * 30 / 100);
+        result.log.push_back({DungeonEventType::FloorStart, "Second Wind", playerHp, playerHp, 0, false});
       }
     }
 

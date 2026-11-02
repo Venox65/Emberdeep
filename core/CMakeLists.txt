@@ -11,6 +11,13 @@ add_library(emberdeep_core
     src/pcg.cpp
     src/save.cpp
     src/stats.cpp
+    src/crypto.cpp
+    src/achievements.cpp
+    src/data_loader.cpp
+    src/descent/spatial.cpp
+    src/descent/spawning.cpp
+    src/descent/progression.cpp
+    src/descent/combat_sim.cpp
 )
 
 target_include_directories(emberdeep_core

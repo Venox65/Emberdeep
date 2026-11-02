@@ -19,6 +19,7 @@ TEST_CASE("crafting consumes resources and creates tiered gear") {
   REQUIRE(ed::craftGear(game, inventory, recipes.front()));
   REQUIRE(inventory.gear.size() == 1);
   REQUIRE(inventory.gear.front().slot == "pickaxe");
+  REQUIRE(inventory.gear.front().sockets >= 1);
   REQUIRE(game.player.gold == 940);
 }
 
@@ -74,4 +75,56 @@ TEST_CASE("mythic gear upgrades require endgame unlock and postgame materials") 
   t10Piece.upgradeLevel = 20;
   REQUIRE_FALSE(ed::canUpgradeGear(game, t10Piece));
   REQUIRE(ed::upgradeGoldCost(t10Piece) == 0);
+}
+
+TEST_CASE("fantasy gear names match section 8.3 specification") {
+  // Tier 1 Ashen
+  REQUIRE(std::string(ed::fantasyGearName(1, "pickaxe")) == "Stone Pick");
+  REQUIRE(std::string(ed::fantasyGearName(1, "helm")) == "Ash Cap");
+  REQUIRE(std::string(ed::fantasyGearName(1, "chestplate")) == "Ash Jerkin");
+  REQUIRE(std::string(ed::fantasyGearName(1, "gauntlets")) == "Ash Wraps");
+  REQUIRE(std::string(ed::fantasyGearName(1, "boots")) == "Ash Sandals");
+  REQUIRE(std::string(ed::fantasyGearName(1, "amulet")) == "Pebble Charm");
+
+  // Tier 5 Aurelite
+  REQUIRE(std::string(ed::fantasyGearName(5, "pickaxe")) == "Gilded Pick");
+  REQUIRE(std::string(ed::fantasyGearName(5, "helm")) == "Gilded Helm");
+  REQUIRE(std::string(ed::fantasyGearName(5, "chestplate")) == "Gilded Plate");
+  REQUIRE(std::string(ed::fantasyGearName(5, "gauntlets")) == "Gilded Fists");
+  REQUIRE(std::string(ed::fantasyGearName(5, "boots")) == "Gilded Boots");
+  REQUIRE(std::string(ed::fantasyGearName(5, "amulet")) == "Gilded Amulet");
+
+  // Tier 7 Starmetal
+  REQUIRE(std::string(ed::fantasyGearName(7, "pickaxe")) == "Starbreaker");
+  REQUIRE(std::string(ed::fantasyGearName(7, "helm")) == "Star Helm");
+  REQUIRE(std::string(ed::fantasyGearName(7, "chestplate")) == "Star Plate");
+  REQUIRE(std::string(ed::fantasyGearName(7, "gauntlets")) == "Star Gauntlets");
+  REQUIRE(std::string(ed::fantasyGearName(7, "boots")) == "Star Greaves");
+  REQUIRE(std::string(ed::fantasyGearName(7, "amulet")) == "Star Choker");
+
+  // Tier 10 Aether
+  REQUIRE(std::string(ed::fantasyGearName(10, "pickaxe")) == "Aetherpick");
+  REQUIRE(std::string(ed::fantasyGearName(10, "helm")) == "Aether Crown");
+  REQUIRE(std::string(ed::fantasyGearName(10, "chestplate")) == "Aether Plate");
+  REQUIRE(std::string(ed::fantasyGearName(10, "gauntlets")) == "Aether Hands");
+  REQUIRE(std::string(ed::fantasyGearName(10, "boots")) == "Aether Stride");
+  REQUIRE(std::string(ed::fantasyGearName(10, "amulet")) == "Aether Heart");
+}
+
+TEST_CASE("canCraftGear verifies affordability and resource requirements") {
+  ed::GameState game;
+  ed::InventoryState inventory;
+  const auto recipes = ed::defaultCraftRecipes(1);
+  const auto& r = recipes.front(); // Tier 1 pickaxe: 8 ashen-stone ingots, 60 gold
+
+  REQUIRE_FALSE(ed::canCraftGear(game, inventory, r));
+
+  game.player.gold = 100;
+  REQUIRE_FALSE(ed::canCraftGear(game, inventory, r)); // Still no ingots
+
+  ed::addItemToInventory(inventory, "ingots", "ashen-stone", 7);
+  REQUIRE_FALSE(ed::canCraftGear(game, inventory, r)); // Needs 8
+
+  ed::addItemToInventory(inventory, "ingots", "ashen-stone", 1);
+  REQUIRE(ed::canCraftGear(game, inventory, r)); // Now has 8 ingots and 100 gold
 }

@@ -43,4 +43,6 @@ std::uint64_t progressScore(int ascensions,
                            int level,
                            std::uint64_t lifetimeGold);
 
+std::string formatCount(std::int64_t count);
+
 } // namespace ed

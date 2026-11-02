@@ -19,6 +19,8 @@ add_executable(emberdeep_core_tests
     core/test_postgame.cpp
     core/test_progression.cpp
     core/test_stats_save.cpp
+    core/test_achievements_and_data.cpp
+    core/test_descent_core.cpp
 )
 
 target_link_libraries(emberdeep_core_tests PRIVATE emberdeep_core Catch2::Catch2WithMain)

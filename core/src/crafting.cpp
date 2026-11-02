@@ -7,14 +7,39 @@
 
 namespace ed {
 
-namespace {
-
 const char* tierName(int tier) {
   static constexpr const char* names[] = {
       "", "Ashen", "Copper", "Iron", "Silver", "Aurelite",
       "Runic", "Starmetal", "Wyrm", "Void", "Aether"};
   return tier >= 1 && tier <= 10 ? names[tier] : "Unknown";
 }
+
+const char* fantasyGearName(int tier, const std::string& slot) {
+  static constexpr const char* names[10][6] = {
+      // Pickaxe, Helm, Chestplate, Gauntlets, Boots, Amulet
+      {"Stone Pick", "Ash Cap", "Ash Jerkin", "Ash Wraps", "Ash Sandals", "Pebble Charm"},
+      {"Copper Pick", "Copper Coif", "Copper Cuirass", "Copper Grips", "Copper Greaves", "Copper Locket"},
+      {"Iron Pick", "Iron Helm", "Iron Hauberk", "Iron Gauntlets", "Iron Sabatons", "Iron Sigil"},
+      {"Silver Pick", "Silver Circlet", "Silver Mail", "Silver Gloves", "Silver Treads", "Silver Pendant"},
+      {"Gilded Pick", "Gilded Helm", "Gilded Plate", "Gilded Fists", "Gilded Boots", "Gilded Amulet"},
+      {"Runepick", "Rune Hood", "Rune Robe", "Rune Mitts", "Rune Slippers", "Rune Talisman"},
+      {"Starbreaker", "Star Helm", "Star Plate", "Star Gauntlets", "Star Greaves", "Star Choker"},
+      {"Wyrmfang Pick", "Wyrm Helm", "Wyrm Hide", "Wyrm Claws", "Wyrm Boots", "Wyrm Talon"},
+      {"Voidpick", "Void Cowl", "Void Shroud", "Void Grasp", "Void Steps", "Void Eye"},
+      {"Aetherpick", "Aether Crown", "Aether Plate", "Aether Hands", "Aether Stride", "Aether Heart"}};
+
+  const int t = std::clamp(tier, 1, 10) - 1;
+  int s = 0;
+  if (slot == "pickaxe") s = 0;
+  else if (slot == "helm") s = 1;
+  else if (slot == "chestplate") s = 2;
+  else if (slot == "gauntlets") s = 3;
+  else if (slot == "boots") s = 4;
+  else if (slot == "amulet") s = 5;
+  return names[t][s];
+}
+
+namespace {
 
 const char* slotName(const std::string& slot) {
   if (slot == "pickaxe") return "Pickaxe";
@@ -54,7 +79,7 @@ std::vector<CraftRecipe> defaultCraftRecipes(int maxTier) {
       recipe.gold = gold[i] * static_cast<int>(std::pow(3.0, tier - 1));
       recipe.requiresGem = recipe.slot == "amulet";
       recipe.itemId = std::string(tierName(tier)) + "-" + recipe.slot;
-      recipe.itemName = std::string(tierName(tier)) + " " + slotName(recipe.slot);
+      recipe.itemName = fantasyGearName(tier, recipe.slot);
       recipes.push_back(recipe);
     }
   }
@@ -70,7 +95,7 @@ bool smeltOre(InventoryState& inventory, const std::string& oreId, int batches) 
   return true;
 }
 
-bool craftGear(GameState& game, InventoryState& inventory, const CraftRecipe& recipe) {
+bool canCraftGear(const GameState& game, const InventoryState& inventory, const CraftRecipe& recipe) {
   if (game.player.gold < recipe.gold) {
     return false;
   }
@@ -79,22 +104,53 @@ bool craftGear(GameState& game, InventoryState& inventory, const CraftRecipe& re
                                       "aetherium"};
   const std::string materialId = materialIds[std::clamp(recipe.tier, 1, 10) - 1];
   if (countItem(inventory, "ingots", materialId) < recipe.ingots ||
-      countItem(inventory, "trophies", "zone-" + std::to_string(recipe.tier)) < recipe.trophies ||
-      (recipe.requiresGem && inventory.gems.empty())) {
+      (recipe.trophies > 0 && countItem(inventory, "trophies", "zone-" + std::to_string(recipe.tier)) < recipe.trophies)) {
     return false;
   }
+  if (recipe.requiresGem) {
+    bool hasAnyGem = false;
+    for (const auto& [id, cnt] : inventory.gems) {
+      if (cnt > 0) {
+        hasAnyGem = true;
+        break;
+      }
+    }
+    if (!hasAnyGem) return false;
+  }
+  return true;
+}
+
+bool craftGear(GameState& game, InventoryState& inventory, const CraftRecipe& recipe) {
+  if (!canCraftGear(game, inventory, recipe)) {
+    return false;
+  }
+  static const char* materialIds[] = {"ashen-stone", "copper", "iron", "silvervein", "aurelite",
+                                      "runic-slate", "starmetal", "wyrmite", "voidglass",
+                                      "aetherium"};
+  const std::string materialId = materialIds[std::clamp(recipe.tier, 1, 10) - 1];
   removeItemFromInventory(inventory, "ingots", materialId, recipe.ingots);
   if (recipe.trophies > 0) {
     removeItemFromInventory(inventory, "trophies", "zone-" + std::to_string(recipe.tier),
                             recipe.trophies);
   }
   if (recipe.requiresGem) {
-    inventory.gems.begin()->second -= 1;
-    if (inventory.gems.begin()->second == 0) inventory.gems.erase(inventory.gems.begin());
+    for (auto it = inventory.gems.begin(); it != inventory.gems.end(); ++it) {
+      if (it->second > 0) {
+        it->second -= 1;
+        if (it->second == 0) {
+          inventory.gems.erase(it);
+        }
+        break;
+      }
+    }
   }
   game.player.gold -= recipe.gold;
+  int sockets = gearSocketCount(recipe.tier);
+  if (recipe.slot == "pickaxe") {
+    sockets = std::max(1, sockets);
+  }
   GearPiece piece{recipe.slot, recipe.itemId, recipe.itemName, recipe.tier, 0,
-                  gearSocketCount(recipe.tier), false};
+                  sockets, false};
   inventory.gear.push_back(piece);
   game.dirty = true;
   return true;

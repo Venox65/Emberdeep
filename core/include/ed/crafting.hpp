@@ -22,7 +22,10 @@ struct CraftRecipe {
 };
 
 std::vector<CraftRecipe> defaultCraftRecipes(int maxTier = 10);
+const char* tierName(int tier);
+const char* fantasyGearName(int tier, const std::string& slot);
 bool smeltOre(InventoryState& inventory, const std::string& oreId, int batches);
+bool canCraftGear(const GameState& game, const InventoryState& inventory, const CraftRecipe& recipe);
 bool craftGear(GameState& game, InventoryState& inventory, const CraftRecipe& recipe);
 bool enchantGearPiece(GameState& game, InventoryState& inventory, const std::string& itemId, Pcg32& rng);
 int enchantDustCost(const GearPiece& piece);

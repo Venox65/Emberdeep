@@ -5,6 +5,8 @@
 #include <cstdint>
 #include <string>
 
+#include "game_actions.hpp"
+
 namespace ed::app {
 
 void drawCampaignMinigames(const AppState& app, const ed::BossDef& boss) {
@@ -434,7 +436,7 @@ void drawCampaignMinigames(const AppState& app, const ed::BossDef& boss) {
 }
 
 bool handleActiveCampaignInput(AppState& app) {
-  if (app.screen != Screen::Campaign) return false;
+  if (app.screen != Screen::Campaign && !app.descentMinigameActive) return false;
   if (app.campaignIntro) {
     if (IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_BACKSPACE)) {
       app.campaignIntro = false;
@@ -443,6 +445,10 @@ bool handleActiveCampaignInput(AppState& app) {
   }
   if (!app.campaignAttempt) return false;
   if (IsKeyPressed(KEY_BACKSPACE) || IsKeyPressed(KEY_ESCAPE)) {
+    if (app.descentMinigameActive) {
+      finishDescentVaultMinigame(app, false);
+      return true;
+    }
     app.campaignAttempt = false;
     app.campaignIntro = false;
     app.campaignScore = 0;
@@ -451,8 +457,9 @@ bool handleActiveCampaignInput(AppState& app) {
     return true;
   }
 
-  const auto challenge =
-      app.bosses[static_cast<std::size_t>(app.selectedBoss)].challenge;
+  const auto bossIdx = app.descentMinigameActive ? static_cast<std::size_t>(app.descentMinigameBossIdx)
+                                                 : static_cast<std::size_t>(app.selectedBoss);
+  const auto challenge = app.bosses[bossIdx].challenge;
   if (challenge == ed::BossChallenge::FrenzyDig &&
       (IsKeyPressed(KEY_SPACE) || IsMouseButtonPressed(MOUSE_BUTTON_LEFT))) {
     const Vector2 mouse = GetMousePosition();

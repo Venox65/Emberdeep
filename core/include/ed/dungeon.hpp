@@ -28,6 +28,7 @@ struct DungeonPlayerStats {
   std::int64_t speed = 10;
   int critChanceBasisPoints = 500;
   int critDamageBasisPoints = 15000;
+  bool secondWind = false;
 };
 
 
