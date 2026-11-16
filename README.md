@@ -1,8 +1,7 @@
 # Emberdeep: The Hollow Crown
 
-Emberdeep is an offline-first C++20 and raylib incremental mining RPG. It features satisfying clicker mining, deep equipment crafting, socketed gemstones, turn-based dungeon combat, 10 unique skill-based campaign boss minigames, and extensive post-game progression including Ascension prestige, Ember Perks, and the endless Deep Strata.
-
-All core gameplay rules, calculations, and save logic live in a modular `core` library shared by both the graphical client and the terminal playtest harness.
+Emberdeep is an offline incremental mining RPG. It features satisfying clicker mining, deep equipment crafting, gemstones, turn-based dungeon combat, 10 unique skill-based campaign boss minigames, and extensive post-game progression including Ascension prestige, Ember Perks, and the endless Deep Strata.
+New Gamemode! Hollow Descent: a rogue-like 2D bullet hell. Choose your favorite class and enter the depths full of various enemies and glorious rewards!
 
 ---
 
@@ -52,13 +51,13 @@ Or run the terminal playtest harness:
 
 ## Game Overview & Screens
 
-Navigate between screens using top-row number keys (`1` through `8`) or the menu sidebar button:
+Navigate between screens using top-row number keys (`1` through `0`) or the menu sidebar button:
 
 ### 1. Mine (`1`)
 - Mine through 10 distinct geological layers from **Ashen Warrens** down to **The Aether Vault**.
 - Click the central block or press `Space` to mine.
 - Switch between unlocked layers with `Q` and `E`.
-- **Post-Game — The Deep Strata:** After conquering all 10 Campaign bosses, Layer 10 gains an endless Depth counter. Each depth scales block HP ($\times 2.6^d$), sustained post-game XP ($\times 2.4 \times 1.35^{d-1}$), Aetherium ore ($\times [1 + 0.5d]$), and awards rare **Aether Shards** used for Mythic upgrades.
+- **Post-Game — The Deep Strata:** After conquering all 10 Campaign bosses, Layer 10 gains an endless Depth counter. Each depth scales block HP, and awards rare **Aether Shards** used for Mythic upgrades.
   - Adjust depth with `[` / `]` or `-` / `+` (or click `[-]` / `[+]`).
   - Toggle auto-advancing depth on block destruction with `T` (or click `[Auto: ON/OFF]`).
 
@@ -68,7 +67,7 @@ Navigate between screens using top-row number keys (`1` through `8`) or the menu
 - Navigate gear cards with `A` / `D` or direct mouse click.
 - **Gear Upgrades (`U`):** Upgrade gear +0 to +10 using gold and Arcane Dust (+8% base stats per level).
 - **Mythic Gear Upgrades (`+11` to `+20`):** Unlocked after defeating The Hollow King. Each level adds +10% base stats. Costs gold, dust, **Aether Shards** (from Deep Strata), and **Echo Sigils** (from Echo Campaign). Reaching +11 unlocks a 4th socket on Tier 10 gear, and mythic pieces emit an animated ethereal glow.
-- **Gem Sockets:** Gear from Tier 4 onward contains sockets. Press `G` to socket available gems or `R` to remove gems.
+- **Gem Sockets:** Gear from Tier 4 onward contains sockets. 
 
 ### 3. Crafting & Smelting (`3`)
 - Smelt 4 ores into 1 ingot (`C`).
@@ -95,7 +94,7 @@ Navigate between screens using top-row number keys (`1` through `8`) or the menu
   - **Empowered Combat Stats:** Echo bosses gain massive stat multipliers (+35% HP, +25% Atk, +20% Def, +15% Speed per Echo rank), testing high-level Mythic equipment (+11 to +20) and socketed gemstones.
   - **Banishment Tracking & Sigil Rewards:** Defeating Echo bosses yields gold and **Echo Sigils** used for Mythic gear enhancements.
   - Banishing all 10 Echo bosses advances the player to the next Echo Rank!
-- Retreat from any boss minigame or combat at any time using `Esc` or `Backspace`.
+
 
 ### 5. Dungeon (`5`)
 - Undertake 5-floor turn-based expeditions against zone enemies that spawn together.
@@ -130,7 +129,7 @@ Navigate between screens using top-row number keys (`1` through `8`) or the menu
 
 ## Save System
 
-- **Multi-Save Slot Management:** Click the `[SAV]` button in the top bar to open the local save manager modal.
+- **Multi-Save Slot Management:** Click the `[SAVE]` button in the top bar to open the local save manager modal.
 - **Seamless Switching:** Select and load any local save file (`emberdeep*.sav`) directly without restarting the game.
 - **Create New Saves:** Create fresh named save slots on the fly from the UI dialog.
 - **Atomic Background Autosaves:** Background worker thread periodically writes progress safely to disk without causing frame drops.
@@ -138,24 +137,3 @@ Navigate between screens using top-row number keys (`1` through `8`) or the menu
 
 ---
 
-## Repository Structure
-
-```text
-├── client/
-│   ├── src/app/                 # Modular raylib graphical application
-│   │   ├── main.cpp             # Game bootstrap, initialization & main loop orchestrator
-│   │   ├── app_state.hpp        # Central AppState structure, screens, timers & animation state
-│   │   ├── save_system.hpp/.cpp # Multi-save management, background thread & slot modal UI
-│   │   ├── game_actions.hpp/.cpp# Mining hits, block generation, layer selection & triggers
-│   │   ├── game_updates.hpp/.cpp# Per-frame logic, boss cooldowns, floating texts & screen shakes
-│   │   ├── campaign_minigames.hpp/.cpp # UI & mechanics for all 10 boss mini-games
-│   │   ├── ui_screens.hpp/.cpp  # Screen rendering (Mine, Inventory, Crafting, Profile, etc.)
-│   │   └── input_handler.hpp/.cpp # Keyboard and mouse dispatch routing across screens
-│   └── src/playtest/            # Headless terminal playtest harness
-├── core/                        # Platform-agnostic game logic and data models
-│   ├── include/ed/              # Public headers (mining, combat, stats, postgame, save)
-│   └── src/                     # Core mechanics, formulas, and state simulation
-├── data/                        # JSON data definitions (materials, layers, bosses, perks)
-├── sprites/                     # Pixel art assets for mining blocks and ingots
-└── tests/                       # Catch2 automated test suite (47 unit and integration tests)
-```
