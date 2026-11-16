@@ -3,6 +3,8 @@
 Emberdeep is an offline incremental mining RPG. It features satisfying clicker mining, deep equipment crafting, gemstones, turn-based dungeon combat, 10 unique skill-based campaign boss minigames, and extensive post-game progression including Ascension prestige, Ember Perks, and the endless Deep Strata.
 New Gamemode! Hollow Descent: a rogue-like 2D bullet hell. Choose your favorite class and enter the depths full of various enemies and glorious rewards!
 
+Currently working on creating full list of sprites for the game and porting it onto iOS - stay tuned.
+
 ---
 
 ## Requirements
